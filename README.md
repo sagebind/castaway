@@ -21,7 +21,7 @@ The implementation is relatively simple:
 - Use [TypeId] to check whether the target type is the same type as `Self`.
 - Use various unsafe constant expressions for transmuting `Self` into the target type.
 
-By avoiding any complex operations to perform downcasting, we end up with something that the compiler will accept, but is also consists of mostly const expressions that are easily optimized away. Take a look at the following contrived example:
+By avoiding any complex operations to perform downcasting, we end up with something that the compiler will accept, but also consists mostly of const expressions that are easily optimized away. Take a look at the following contrived example:
 
 ```rust
 fn display_len<T: Display + 'static>(value: T) -> usize {
