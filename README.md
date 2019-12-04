@@ -1,6 +1,12 @@
 # Transmogrify
 
-Experimental crate for zero-cost downcasting for limited runtime specialization.
+> **trans·mog·ri·fy**
+>
+> _verb_: `HUMOROUS`
+> 1. To change or alter greatly and often with grotesque or humorous effect.
+>
+> _noun_: `HUMOROUS`
+> 1. An experimental crate for zero-cost downcasting for limited runtime specialization.
 
 ![License](https://img.shields.io/github/license/sagebind/transmogrify)
 
@@ -67,7 +73,7 @@ fn display_len_i32(value: i32) -> usize {
 
 Since `TypeId::of` is a const function backed by a compiler intrinsic, the first `if` condition is trivially optimized away into `true` for the first implementation and `false` for the latter. This leads to further optimizations of eliminating the impossible branch for each.
 
-The second optimization in the `/* magic */` expression. The exact expression varies on which transmogrify function you use, but is more-or-less just a transmute that does nothing except make the compiler accept the dangerous-looking type cast.
+The second optimization is in the `/* magic */` expression. The exact expression varies on which transmogrify function you use, but is more or less just a transmute that does nothing except make the compiler accept the dangerous-looking type cast.
 
 After all optimizations, the code that is actually compiled might look more like this:
 
