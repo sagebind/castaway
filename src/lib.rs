@@ -55,12 +55,13 @@ use core::{any::TypeId, mem};
 /// ```
 pub trait Transmogrify: 'static {
     /// Get a reference to self if it is of type `T`, or `None` if it isn't.
+    #[inline]
     fn transmogrify_ref<T>(&self) -> Option<&T>
     where
         T: Transmogrify,
     {
         if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Some(unsafe { self.transmogrify_ref_unchecked() })
+            Some(unsafe { Self::transmogrify_ref_unchecked::<T>(self) })
         } else {
             None
         }
@@ -68,12 +69,13 @@ pub trait Transmogrify: 'static {
 
     /// Get a mutable reference to self if it is of type `T`, or `None` if it
     /// isn't.
+    #[inline]
     fn transmogrify_mut<T>(&mut self) -> Option<&mut T>
     where
         T: Transmogrify,
     {
         if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Some(unsafe { self.transmogrify_mut_unchecked() })
+            Some(unsafe { Self::transmogrify_mut_unchecked::<T>(self) })
         } else {
             None
         }
@@ -83,13 +85,14 @@ pub trait Transmogrify: 'static {
     /// process.
     ///
     /// If self is not a `T`, returns self unchanged in an `Err`.
+    #[inline]
     fn transmogrify_into<T>(self) -> Result<T, Self>
     where
         Self: Sized,
         T: Transmogrify + Sized,
     {
         if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Ok(unsafe { self.transmogrify_into_unchecked() })
+            Ok(unsafe { Self::transmogrify_into_unchecked::<T>(self) })
         } else {
             Err(self)
         }
