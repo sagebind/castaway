@@ -1,0 +1,5 @@
+[package]
+name = "transmogrify"
+version = "0.1.0"
+authors = ["Stephen M. Coakley <me@stephencoakley.com>"]
+edition = "2018"
