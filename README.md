@@ -18,7 +18,7 @@ Import the `Transmogrify` trait to make the methods `transmogrify_ref`, `transmo
 
 This is an experimental library that implements zero-cost downcasting of types that works on stable Rust. It began as a thought experiment after I had read [this pull request](https://github.com/hyperium/http/pull/369) and wondered if it would be possible to alter the behavior of a generic function based on a concrete type without using trait objects. I stumbled on the "zero-cost"-ness of my findings by accident while playing around with different implementations and examining the generated assembly of example programs.
 
-While the API is quite similar to [Any] in the standard library, it provides better optimized code, but also has more limited uses. If you need to store one or more `Box<?>` objects implementing some trait with the option of downcasting, you are much better off using [Any].
+The API is quite similar to [Any] in the standard library, but transmogrify provides better optimized code, with the caveat of having more limited uses. If you need to store one or more `Box<?>` objects implementing some trait with the option of downcasting, you are much better off using [Any].
 
 ## How does it work?
 
