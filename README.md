@@ -6,7 +6,7 @@
 > 1. To change or alter greatly and often with grotesque or humorous effect.
 >
 > _noun_: `HUMOROUS`
-> 1. An experimental crate for zero-cost downcasting for limited runtime specialization.
+> 1. An experimental crate for zero-cost downcasting for limited compile-time function specialization.
 
 ![License](https://img.shields.io/github/license/sagebind/transmogrify)
 
