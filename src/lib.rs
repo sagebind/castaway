@@ -5,9 +5,12 @@
 //! standard library.
 
 #![no_std]
-#![cfg_attr(feature = "nightly", feature(untagged_unions))]
+#![cfg_attr(feature = "specialization", feature(specialization))]
+#![cfg_attr(feature = "union-transmute", feature(untagged_unions))]
 
-use core::{any::TypeId, mem};
+use crate::cast::Cast;
+
+mod cast;
 
 /// A trait for zero-cost type casting in generic contexts to allow limited
 /// forms of specialization at runtime.
@@ -54,18 +57,14 @@ use core::{any::TypeId, mem};
 /// println!("specialized: {}", String::from("hello").fast_to_string());
 /// println!("default: {}", "hello".fast_to_string());
 /// ```
-pub trait Transmogrify: 'static {
+pub trait Transmogrify {
     /// Get a reference to self if it is of type `T`, or `None` if it isn't.
     #[inline]
     fn transmogrify_ref<T>(&self) -> Option<&T>
     where
-        T: Transmogrify,
+        Self: Cast<T>,
     {
-        if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Some(unsafe { Self::transmogrify_ref_unchecked::<T>(self) })
-        } else {
-            None
-        }
+        Cast::cast_ref(self)
     }
 
     /// Get a mutable reference to self if it is of type `T`, or `None` if it
@@ -73,13 +72,9 @@ pub trait Transmogrify: 'static {
     #[inline]
     fn transmogrify_mut<T>(&mut self) -> Option<&mut T>
     where
-        T: Transmogrify,
+        Self: Cast<T>,
     {
-        if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Some(unsafe { Self::transmogrify_mut_unchecked::<T>(self) })
-        } else {
-            None
-        }
+        Cast::cast_mut(self)
     }
 
     /// Convert self into a `T` if self is of type `T`, consuming self in the
@@ -89,14 +84,10 @@ pub trait Transmogrify: 'static {
     #[inline]
     fn transmogrify_into<T>(self) -> Result<T, Self>
     where
-        Self: Sized,
-        T: Transmogrify + Sized,
+        Self: Cast<T> + Sized,
+        T: Sized,
     {
-        if TypeId::of::<Self>() == TypeId::of::<T>() {
-            Ok(unsafe { Self::transmogrify_into_unchecked::<T>(self) })
-        } else {
-            Err(self)
-        }
+        Cast::cast_into(self)
     }
 
     /// Cast a reference of self to type `T`. You can use this if you are
@@ -108,9 +99,9 @@ pub trait Transmogrify: 'static {
     #[inline]
     unsafe fn transmogrify_ref_unchecked<T>(&self) -> &T
     where
-        T: Transmogrify,
+        Self: Cast<T>,
     {
-        &*(self as *const Self as *const _)
+        Cast::cast_ref_unchecked(self)
     }
 
     /// Cast a mutable reference of self to type `T`. You can use this if you
@@ -122,9 +113,9 @@ pub trait Transmogrify: 'static {
     #[inline]
     unsafe fn transmogrify_mut_unchecked<T>(&mut self) -> &mut T
     where
-        T: Transmogrify,
+        Self: Cast<T>,
     {
-        &mut *(self as *mut Self as *mut _)
+        Cast::cast_mut_unchecked(self)
     }
 
     /// Cast self to type `T`, consuming self and moving it. You can use this if
@@ -136,36 +127,14 @@ pub trait Transmogrify: 'static {
     #[inline]
     unsafe fn transmogrify_into_unchecked<T>(self) -> T
     where
-        Self: Sized,
-        T: Transmogrify + Sized,
+        Self: Cast<T> + Sized,
+        T: Sized,
     {
-        // On nightly we can use unions to view the same region of memory as
-        // multiple types without copying.
-        #[cfg(feature = "nightly")]
-        {
-            union Transmute<T, U> {
-                src: mem::ManuallyDrop<T>,
-                dest: mem::ManuallyDrop<U>,
-            }
-
-            mem::ManuallyDrop::into_inner(Transmute {
-                src: mem::ManuallyDrop::new(self),
-            }.dest)
-        }
-
-        // This involves a memory copy that should get optimized away, but is
-        // nonetheless inferior to the nightly implementation.
-        #[cfg(not(feature = "nightly"))]
-        {
-            let out = mem::transmute_copy(&self);
-            mem::forget(self);
-            out
-        }
+        Cast::cast_into_unchecked(self)
     }
 }
 
-/// Any static type can be transmogrified.
-impl<T: 'static> Transmogrify for T {}
+impl<T> Transmogrify for T {}
 
 #[cfg(test)]
 mod tests {

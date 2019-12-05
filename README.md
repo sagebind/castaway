@@ -22,7 +22,7 @@ The API is quite similar to [Any] in the standard library, but transmogrify prov
 
 ## How does it work?
 
-The implementation is relatively simple:
+The default implementation is relatively simple:
 
 - Use [TypeId] to check whether the target type is the same type as `Self`.
 - Use various unsafe constant expressions for transmuting `Self` into the target type.
@@ -88,6 +88,15 @@ fn display_len_i32(value: i32) -> usize {
 ```
 
 For this specific scenario, this is just as good as specialization!
+
+## Features
+
+There are a few other ways of implementing this pattern with varying improvements of the original implementation. Currently the following crate features exist:
+
+- `specialization`: This feature uses actual Rust specialization to implement transmogrify. Requires nightly.
+- `union-transmute`: This feature uses untagged unions to implement `transmute_into` without having to do a `memcpy`. Requires nightly.
+
+These alternate implementations are interesting; I recommend reading the source code to see the different ways of implementing casting.
 
 ## Safety
 
