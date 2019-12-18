@@ -5,7 +5,6 @@
 //! standard library.
 
 #![no_std]
-#![cfg_attr(feature = "nightly", feature(untagged_unions))]
 
 use core::{any::TypeId, mem};
 
@@ -139,28 +138,7 @@ pub trait Transmogrify: 'static {
         Self: Sized,
         T: Transmogrify + Sized,
     {
-        // On nightly we can use unions to view the same region of memory as
-        // multiple types without copying.
-        #[cfg(feature = "nightly")]
-        {
-            union Transmute<T, U> {
-                src: mem::ManuallyDrop<T>,
-                dest: mem::ManuallyDrop<U>,
-            }
-
-            mem::ManuallyDrop::into_inner(Transmute {
-                src: mem::ManuallyDrop::new(self),
-            }.dest)
-        }
-
-        // This involves a memory copy that should get optimized away, but is
-        // nonetheless inferior to the nightly implementation.
-        #[cfg(not(feature = "nightly"))]
-        {
-            let out = mem::transmute_copy(&self);
-            mem::forget(self);
-            out
-        }
+        mem::transmute_copy(&mem::ManuallyDrop::new(self))
     }
 }
 
