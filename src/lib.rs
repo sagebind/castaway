@@ -8,6 +8,8 @@
 
 use core::{any::TypeId, mem};
 
+mod macros;
+
 /// A trait for zero-cost type casting in generic contexts to allow limited
 /// forms of specialization at runtime.
 ///
