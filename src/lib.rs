@@ -116,45 +116,25 @@ pub mod internal;
 /// ```
 #[macro_export]
 macro_rules! cast {
-    // Cast to a mutable reference with a static lifetime. Since we know that
-    // the target lifetime is static, we can allow casting values that aren't
-    // statically known to be references, as long as the value is static.
-    ($value:expr, &'static mut $T:path) => {{
-        $crate::internal::try_cast_owned::<_, &'static mut $T>($value)
-    }};
-
-    // Cast a mutable reference with a named lifetime.
-    ($value:expr, &$lifetime:lifetime mut $T:path) => {{
-        $crate::internal::try_cast_mut::<$lifetime, _, $T>($value)
-    }};
-
-    // Cast a mutable reference with an inferred lifetime.
-    ($value:expr, &mut $T:path) => {{
-        $crate::internal::try_cast_mut::<_, $T>($value)
-    }};
-
-    // Cast to a reference with a static lifetime. Since we know that the target
-    // lifetime is static, we can allow casting values that aren't statically
-    // known to be references, as long as the value is static.
-    ($value:expr, &'static $T:path) => {{
-        $crate::internal::try_cast_owned::<_, &'static $T>($value)
-    }};
-
-    // Cast a reference with a named lifetime.
-    ($value:expr, &$lifetime:lifetime $T:path) => {{
-        $crate::internal::try_cast_ref::<$lifetime, _, $T>($value)
-    }};
-
-    // Cast a reference with an inferred lifetime.
-    ($value:expr, &$T:path) => {{
-        $crate::internal::try_cast_ref::<_, $T>($value)
-    }};
-
-    // Default case where we don't know if a reference is involved at macro
-    // expansion time. Any cast can be made here, but both the value and the
-    // cast target must be `'static`.
     ($value:expr, $T:ty) => {{
-        $crate::internal::try_cast_owned::<_, $T>($value)
+        #[allow(unused_imports)]
+        use $crate::internal::{CastToken, TryCastMut, TryCastOwned, TryCastRef};
+
+        // Here we are using an _autoderef specialization_ technique, which
+        // exploits method resolution autoderefs to select different cast
+        // implementations based on the type of expression passed in. The traits
+        // imported above are all in scope and all have the potential to be
+        // chosen to resolve the method name `try_cast` based on their generic
+        // constraints.
+        //
+        // To support casting references with non-static lifetimes, the traits
+        // limited to reference types require less dereferencing to invoke and
+        // thus are preferred by the compiler if applicable.
+        let value = $value;
+        let token = CastToken::of_val(&value);
+        let result: Result<$T, _> = (&&&token).try_cast(value);
+
+        result
     }};
 }
 
@@ -184,24 +164,21 @@ macro_rules! cast {
 macro_rules! match_type {
     ($value:expr, {
         $T:ty as $pat:pat => $branch:expr,
-        $default_pat:pat => $default_branch:expr $(,)*
-    }) => {{
+        $($tail:tt)+
+    }) => {
         match $crate::cast!($value, $T) {
             Ok($pat) => $branch,
-            Err($default_pat) => $default_branch,
-        }
-    }};
-
-    ($value:expr, {
-        $T:ty as $pat:pat => $branch:expr,
-        $($tail:tt)*
-    }) => {{
-        $crate::match_type!($value, {
-            $T as $pat => $branch,
-            value => $crate::match_type!(value, {
+            Err(value) => $crate::match_type!(value, {
                 $($tail)*
             })
-        })
+        }
+    };
+
+    ($value:expr, {
+        $pat:pat => $branch:expr $(,)?
+    }) => {{
+        let $pat = $value;
+        $branch
     }};
 }
 
@@ -214,6 +191,7 @@ mod tests {
         assert_eq!(cast!(0u8, u16), Err(0u8));
         assert_eq!(cast!(1u8, u8), Ok(1u8));
         assert_eq!(cast!(2u8, &'static u8), Err(2u8));
+        assert_eq!(cast!(2u8, &u8), Err(2u8)); // 'static is inferred
 
         static VALUE: u8 = 2u8;
         assert_eq!(cast!(&VALUE, &u8), Ok(&2u8));
