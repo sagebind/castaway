@@ -1,10 +1,9 @@
-//! Experimental crate for zero-cost downcasting for limited compile-time
-//! specialization.
+//! Safe, zero-cost downcasting for limited compile-time specialization.
 //!
 //! This crate works fully on stable Rust, and also does not require the
 //! standard library.
 //!
-//! Transmogrify provides the following key macros:
+//! Castaway provides the following key macros:
 //!
 //! - [`cast`]: Attempt to cast the result of an expression into a given
 //!   concrete type.
@@ -66,7 +65,7 @@ pub mod internal;
 /// Performing a trivial cast:
 ///
 /// ```
-/// use transmogrify::cast;
+/// use castaway::cast;
 ///
 /// let value: u8 = 0;
 /// assert_eq!(cast!(value, u8), Ok(0));
@@ -75,7 +74,7 @@ pub mod internal;
 /// Performing a cast in a generic context:
 ///
 /// ```
-/// use transmogrify::cast;
+/// use castaway::cast;
 ///
 /// fn is_this_a_u8<T: 'static>(value: T) -> bool {
 ///     cast!(value, u8).is_ok()
@@ -89,7 +88,7 @@ pub mod internal;
 ///
 /// ```
 /// use std::fmt::Display;
-/// use transmogrify::cast;
+/// use castaway::cast;
 ///
 /// /// Like `std::string::ToString`, but with an optimization when `Self` is
 /// /// already a `String`.
@@ -101,7 +100,6 @@ pub mod internal;
 ///     fn fast_to_string(&self) -> String;
 /// }
 ///
-/// // Currently transmogrify only works for static types...
 /// impl<T: Display + 'static> FastToString for T {
 ///     fn fast_to_string<'local>(&'local self) -> String {
 ///         // If `T` is already a string, then take a different code path.
@@ -187,7 +185,7 @@ macro_rules! cast {
 ///
 /// ```
 /// use std::fmt::Display;
-/// use transmogrify::match_type;
+/// use castaway::match_type;
 ///
 /// fn to_string<T: Display + 'static>(value: T) -> String {
 ///     match_type!(value, {
