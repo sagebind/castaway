@@ -8,7 +8,8 @@
 //!
 //! - [`cast`]: Attempt to cast the result of an expression into a given
 //!   concrete type.
-//! - [`match_type`]
+//! - [`match_type`]: Match the result of an expression against multiple
+//!   concrete types.
 
 #![no_std]
 
@@ -25,9 +26,17 @@ pub mod internal;
 /// compile time. If you are looking for the ability to downcast values at
 /// runtime, you should use [`Any`](core::any::Any) instead.
 ///
+/// This macro does not perform any sort of type _conversion_ (such as
+/// re-interpreting `i32` as `u32` and so on), it only resolves generic types to
+/// concrete types if the instantiated generic type is exactly the same as the
+/// type you specify. If you are looking to reinterpret the bits of a value as a
+/// type other than the one it actually is, then you should look for a different
+/// library.
+///
 /// Invoking this macro is zero-cost, meaning after normal compiler optimization
-/// steps there will be no code generated for performing a cast. In debug builds
-/// some glue code may be present with a small runtime cost.
+/// steps there will be no code generated in the final binary for performing a
+/// cast. In debug builds some glue code may be present with a small runtime
+/// cost.
 ///
 /// # Restrictions
 ///
@@ -138,11 +147,41 @@ macro_rules! cast {
     }};
 }
 
-/// Construct a `match`-like expression that matches on a value's type, allowing
-/// you to write conditional code depending on the compile-time type of an
-/// expression.
+/// Match the result of an expression against multiple concrete types. You can
+/// write multiple match arms in the following syntax:
 ///
-/// This macro has all the same rules and restrictions as [`cast`].
+/// ```no_compile
+/// TYPE as name => { /* expression */ }
+/// ```
+///
+/// If the concrete type matches the given type, then the value will be cast to
+/// that type and bound to the given variable name. The expression on the
+/// right-hand side of the match is then executed and returned as the result of
+/// the entire match expression.
+///
+/// The name following the `as` keyword can be any [irrefutable
+/// pattern](https://doc.rust-lang.org/stable/reference/patterns.html#refutability).
+/// Like `match` or `let` expressions, you can use an underscore to prevent
+/// warnings if you don't use the casted value, such as `_value` or just `_`.
+///
+/// Since it would be impossible to exhaustively list all possible types of an
+/// expression, you **must** include a final default match arm. The default
+/// match arm does not specify a type:
+///
+/// ```no_compile
+/// name => { /* expression */ }
+/// ```
+///
+/// The original expression will be bound to the given variable name without
+/// being casted. If you don't care about the original value, the default arm
+/// can be:
+///
+/// ```no_compile
+/// _ => { /* expression */ }
+/// ```
+///
+/// This macro has all the same rules and restrictions around type casting as
+/// [`cast`].
 ///
 /// # Examples
 ///
@@ -167,7 +206,10 @@ macro_rules! match_type {
         $($tail:tt)+
     }) => {
         match $crate::cast!($value, $T) {
-            Ok($pat) => $branch,
+            Ok(value) => {
+                let $pat = value;
+                $branch
+            },
             Err(value) => $crate::match_type!(value, {
                 $($tail)*
             })
