@@ -2,7 +2,7 @@
 //! macros. Some are public so they can be accessed by the expanded macro code,
 //! but are not meant to be used by users directly and do not have a stable API.
 
-use core::{marker::PhantomData, mem};
+use core::{any::{TypeId, type_name}, marker::PhantomData, mem};
 
 /// A token struct used to capture the type of a value without taking ownership of
 /// it. Used to select a cast implementation in macros.
@@ -69,17 +69,14 @@ pub trait TryCastOwned<T: 'static> {
 impl<T: 'static> TryCastOwned<T> for CastToken<T> {}
 
 /// Determine if two types are equal to each other.
-///
-/// This implementation attempts to avoid the collision problems with `TypeId`
-/// by relying on function monomorphization to distinguish between types along
-/// with additional memory layout sanity checks.
 #[inline(always)]
 fn type_eq<T: 'static, U: 'static>() -> bool {
-    fn type_id_of<T>() -> usize {
-        type_id_of::<T> as usize
-    }
-
+    // Reduce the chance of `TypeId` collisions causing a problem by also
+    // verifying the layouts match and the type names match. Since `T` and `U`
+    // are known at compile time the compiler should optimize away these extra
+    // checks anyway.
     mem::size_of::<T>() == mem::size_of::<U>()
         && mem::align_of::<T>() == mem::align_of::<U>()
-        && type_id_of::<T>() == type_id_of::<U>()
+        && TypeId::of::<T>() == TypeId::of::<U>()
+        && type_name::<T>() == type_name::<U>()
 }
