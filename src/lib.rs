@@ -139,7 +139,7 @@ macro_rules! cast {
         // thus are preferred by the compiler if applicable.
         let value = $value;
         let token = CastToken::of_val(&value);
-        let result: Result<$T, _> = (&&&token).try_cast(value);
+        let result: ::core::result::Result<$T, _> = (&&&token).try_cast(value);
 
         result
     }};
