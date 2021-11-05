@@ -6,6 +6,6 @@ on:
 
 jobs:
   test:
-    uses: sagebind/workflows/rust/ci.yml@master
+    uses: sagebind/workflows/.github/workflows/rust/ci.yml@master
     with:
       msrv: "1.41.0"
