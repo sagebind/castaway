@@ -6,15 +6,6 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: "1.41.0"
-          default: true
-
-      - run: cargo test
+    uses: sagebind/workflows/rust/ci.yml@master
+    with:
+      msrv: "1.41.0"
