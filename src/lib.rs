@@ -125,7 +125,9 @@ pub mod internal;
 macro_rules! cast {
     ($value:expr, $T:ty) => {{
         #[allow(unused_imports)]
-        use $crate::internal::{CastToken, TryCastMut, TryCastOwned, TryCastRef};
+        use $crate::internal::{
+            CastToken, TryCastMut, TryCastOwned, TryCastRef, TryCastSliceMut, TryCastSliceRef,
+        };
 
         // Here we are using an _autoderef specialization_ technique, which
         // exploits method resolution autoderefs to select different cast
@@ -139,7 +141,7 @@ macro_rules! cast {
         // thus are preferred by the compiler if applicable.
         let value = $value;
         let token = CastToken::of_val(&value);
-        let result: ::core::result::Result<$T, _> = (&&&token).try_cast(value);
+        let result: ::core::result::Result<$T, _> = (&&&&&token).try_cast(value);
 
         result
     }};
@@ -249,6 +251,22 @@ mod tests {
         }
 
         inner(&value);
+
+        let mut slice = [1u8; 2];
+
+        fn inner2<'a>(value: &'a [u8]) {
+            assert_eq!(cast!(value, &[u8]), Ok(&[1, 1][..]));
+            assert_eq!(cast!(value, &'a [u8]), Ok(&[1, 1][..]));
+            assert_eq!(cast!(value, &'a [u16]), Err(&[1, 1][..]));
+            assert_eq!(cast!(value, &'a [i8]), Err(&[1, 1][..]));
+        }
+
+        inner2(&slice);
+
+        fn inner3<'a>(value: &'a mut [u8]) {
+            assert_eq!(cast!(value, &mut [u8]), Ok(&mut [1, 1][..]));
+        }
+        inner3(&mut slice);
     }
 
     #[test]
