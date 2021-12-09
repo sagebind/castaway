@@ -150,6 +150,10 @@ macro_rules! cast {
 
         result
     }};
+
+    ($value:expr) => {
+        $crate::cast!($value, _)
+    };
 }
 
 /// Match the result of an expression against multiple concrete types. You can
@@ -272,6 +276,15 @@ mod tests {
             assert_eq!(cast!(value, &mut [u8]), Ok(&mut [1, 1][..]));
         }
         inner3(&mut slice);
+    }
+
+    #[test]
+    fn cast_with_type_inference() {
+        let result: Result<u8, u8> = cast!(0u8);
+        assert_eq!(result, Ok(0u8));
+
+        let result: Result<u8, u16> = cast!(0u16);
+        assert_eq!(result, Err(0u16));
     }
 
     #[test]
