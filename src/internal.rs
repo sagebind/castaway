@@ -19,13 +19,13 @@ impl<T> CastToken<T> {
     }
 }
 
-/// Supporting trait for autoderef specialization on references.
+/// Supporting trait for autoderef specialization on mutable slices.
 pub trait TryCastSliceMut<'a, T: 'static> {
-    /// Attempt to cast a generic reference to a given type if the types are
+    /// Attempt to cast a generic mutable slice to a given type if the types are
     /// equal.
     ///
-    /// The reference does not have to be static as long as the reference target
-    /// type is static.
+    /// The reference does not have to be static as long as the item type is
+    /// static.
     #[inline(always)]
     fn try_cast<U: 'static>(&self, value: &'a mut [T]) -> Result<&'a mut [U], &'a mut [T]> {
         if type_eq::<T, U>() {
@@ -38,13 +38,12 @@ pub trait TryCastSliceMut<'a, T: 'static> {
 
 impl<'a, T: 'static> TryCastSliceMut<'a, T> for &&&&CastToken<&'a mut [T]> {}
 
-/// Supporting trait for autoderef specialization on references.
+/// Supporting trait for autoderef specialization on slices.
 pub trait TryCastSliceRef<'a, T: 'static> {
-    /// Attempt to cast a generic reference to a given type if the types are
-    /// equal.
+    /// Attempt to cast a generic slice to a given type if the types are equal.
     ///
-    /// The reference does not have to be static as long as the reference target
-    /// type is static.
+    /// The reference does not have to be static as long as the item type is
+    /// static.
     #[inline(always)]
     fn try_cast<U: 'static>(&self, value: &'a [T]) -> Result<&'a [U], &'a [T]> {
         if type_eq::<T, U>() {

@@ -59,16 +59,21 @@ pub mod internal;
 ///   references. For example, you can attempt to cast a `&'a T: 'static` to
 ///   `&'a Foo<'static>`, but you can't attempt to cast a `&'a T: 'b` to `&'a
 ///   Foo<'b>`.
+/// - You can cast generic slices as long as the item type is `'static` and
+///   `Sized`, but you cannot cast a generic reference to a slice or vice versa.
 ///
 /// # Examples
 ///
-/// Performing a trivial cast:
+/// Performing trivial casts:
 ///
 /// ```
 /// use castaway::cast;
 ///
 /// let value: u8 = 0;
 /// assert_eq!(cast!(value, u8), Ok(0));
+///
+/// let slice: &[u8] = &[value];
+/// assert_eq!(cast!(slice, &[u8]), Ok(slice));
 /// ```
 ///
 /// Performing a cast in a generic context:
