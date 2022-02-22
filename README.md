@@ -30,7 +30,7 @@ impl<T: Display + 'static> FastToString for T {
         // If `T` is already a string, then take a different code path.
         // After monomorphization, this check will be completely optimized
         // away.
-        if let Some(string) = cast!(self, &String) {
+        if let Ok(string) = cast!(self, &String) {
             // Don't invoke the std::fmt machinery, just clone the string.
             string.to_owned()
         } else {
