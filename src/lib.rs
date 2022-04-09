@@ -128,10 +128,28 @@ pub mod internal;
 /// ```
 #[macro_export]
 macro_rules! cast {
+    ($value:expr, bool) => {
+        $crate::cast!(@primitive $value, bool)
+    };
+
+    ($value:expr, i32) => {
+        $crate::cast!(@primitive $value, i32)
+    };
+
+    (@primitive $value:expr, $U:tt) => {{
+        $crate::internal::try_cast_lifetime_free::<_, $U>($value)
+    }};
+
     ($value:expr, $T:ty) => {{
         #[allow(unused_imports)]
         use $crate::internal::{
-            CastToken, TryCastMut, TryCastOwned, TryCastRef, TryCastSliceMut, TryCastSliceRef,
+            CastToken,
+            TryCastMut,
+            TryCastOwned,
+            TryCastRef,
+            TryCastSliceMut,
+            TryCastSliceRef,
+            // TryCastLifetimeFree,
         };
 
         // Here we are using an _autoderef specialization_ technique, which
@@ -146,7 +164,7 @@ macro_rules! cast {
         // thus are preferred by the compiler if applicable.
         let value = $value;
         let token = CastToken::of_val(&value);
-        let result: ::core::result::Result<$T, _> = (&&&&&token).try_cast(value);
+        let result: ::core::result::Result<$T, _> = (&&&&&&token).try_cast(value);
 
         result
     }};
@@ -285,6 +303,16 @@ mod tests {
 
         let result: Result<u8, u16> = cast!(0u16);
         assert_eq!(result, Err(0u16));
+    }
+
+    #[test]
+    fn cast_primitive_non_static() {
+        fn inner<T>(value: T) -> bool {
+            cast!(value, bool).is_ok()
+        }
+
+        assert!(!inner(0u8));
+        assert!(inner(true));
     }
 
     #[test]
