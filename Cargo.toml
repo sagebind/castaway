@@ -11,3 +11,6 @@ edition = "2018"
 
 [features]
 std = []
+
+[dependencies]
+rustversion = "1"

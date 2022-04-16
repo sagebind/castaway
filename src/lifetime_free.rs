@@ -40,7 +40,7 @@
 /// // This is also safe, since all fields are known to be `LifetimeFree`.
 /// unsafe impl LifetimeFree for PlainOldData {}
 /// ```
-pub unsafe trait LifetimeFree: 'static {}
+pub unsafe trait LifetimeFree {}
 
 unsafe impl LifetimeFree for () {}
 unsafe impl LifetimeFree for bool {}
@@ -62,6 +62,7 @@ unsafe impl LifetimeFree for char {}
 unsafe impl LifetimeFree for str {}
 
 unsafe impl<T: LifetimeFree> LifetimeFree for [T] {}
+#[rustversion::since(1.51)]
 unsafe impl<T: LifetimeFree, const SIZE: usize> LifetimeFree for [T; SIZE] {}
 unsafe impl<T: LifetimeFree> LifetimeFree for Option<T> {}
 unsafe impl<T: LifetimeFree, E: LifetimeFree> LifetimeFree for Result<T, E> {}
@@ -79,3 +80,51 @@ mod std_impls {
     unsafe impl<T: LifetimeFree> LifetimeFree for Vec<T> {}
     unsafe impl<T: LifetimeFree> LifetimeFree for std::sync::Arc<T> {}
 }
+
+/// A simple wrapper around a type to assert that it is lifetime-free.
+///
+/// When using [`cast!`], it is possible to cast generic type parameters to
+/// their concrete type without `'static` bounds if the target concrete type
+/// implements [`LifetimeFree`]. This trait is implemented for a number of types
+/// in the standard library and can be implemented by your own types. However,
+/// it is not possible for you to implement it on third-party types yourself, so
+/// if you need to cast values to third-party types that ought to be marked as
+/// lifetime-free, you can use this struct to do so for the purposes of a single
+/// cast.
+///
+/// # Examples
+///
+/// ```
+/// use castaway::{AssertLifetimeFree, cast};
+///
+/// // Try to downcast a generic type to `(u8, u8)` in a non-`'static` context. We
+/// // know that it is lifetime-free despite not implementing `LifetimeFree`. This
+/// // requires `unsafe`.
+///
+/// fn downcast_u8_pair<T>(value: T) -> Option<(u8, u8)> {
+///     Some(cast!(unsafe { AssertLifetimeFree::new(value) }, AssertLifetimeFree<(u8, u8)>).ok()?.into_inner())
+/// }
+///
+/// assert_eq!(downcast_u8_pair((0u8, 1u8)), Some((0u8, 1u8)));
+/// assert_eq!(downcast_u8_pair((0u8, 1u16)), None);
+/// ```
+#[repr(transparent)]
+pub struct AssertLifetimeFree<T>(T);
+
+impl<T> AssertLifetimeFree<T> {
+    pub const unsafe fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: LifetimeFree> From<T> for AssertLifetimeFree<T> {
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
+
+unsafe impl<T> LifetimeFree for AssertLifetimeFree<T> {}

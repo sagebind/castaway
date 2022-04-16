@@ -17,7 +17,7 @@ pub mod internal;
 mod lifetime_free;
 mod utils;
 
-pub use lifetime_free::LifetimeFree;
+pub use lifetime_free::{AssertLifetimeFree, LifetimeFree};
 
 /// Attempt to cast the result of an expression into a given concrete type.
 ///
