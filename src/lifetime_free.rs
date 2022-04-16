@@ -44,22 +44,34 @@ pub unsafe trait LifetimeFree {}
 
 unsafe impl LifetimeFree for () {}
 unsafe impl LifetimeFree for bool {}
-unsafe impl LifetimeFree for u8 {}
-unsafe impl LifetimeFree for u16 {}
-unsafe impl LifetimeFree for u32 {}
-unsafe impl LifetimeFree for u64 {}
-unsafe impl LifetimeFree for u128 {}
-unsafe impl LifetimeFree for usize {}
+unsafe impl LifetimeFree for char {}
+unsafe impl LifetimeFree for f32 {}
+unsafe impl LifetimeFree for f64 {}
 unsafe impl LifetimeFree for i8 {}
 unsafe impl LifetimeFree for i16 {}
 unsafe impl LifetimeFree for i32 {}
 unsafe impl LifetimeFree for i64 {}
 unsafe impl LifetimeFree for i128 {}
 unsafe impl LifetimeFree for isize {}
-unsafe impl LifetimeFree for f32 {}
-unsafe impl LifetimeFree for f64 {}
-unsafe impl LifetimeFree for char {}
 unsafe impl LifetimeFree for str {}
+unsafe impl LifetimeFree for u8 {}
+unsafe impl LifetimeFree for u16 {}
+unsafe impl LifetimeFree for u32 {}
+unsafe impl LifetimeFree for u64 {}
+unsafe impl LifetimeFree for u128 {}
+unsafe impl LifetimeFree for usize {}
+
+unsafe impl LifetimeFree for core::num::NonZeroI8 {}
+unsafe impl LifetimeFree for core::num::NonZeroI16 {}
+unsafe impl LifetimeFree for core::num::NonZeroI32 {}
+unsafe impl LifetimeFree for core::num::NonZeroI64 {}
+unsafe impl LifetimeFree for core::num::NonZeroI128 {}
+unsafe impl LifetimeFree for core::num::NonZeroIsize {}
+unsafe impl LifetimeFree for core::num::NonZeroU8 {}
+unsafe impl LifetimeFree for core::num::NonZeroU16 {}
+unsafe impl LifetimeFree for core::num::NonZeroU32 {}
+unsafe impl LifetimeFree for core::num::NonZeroU64 {}
+unsafe impl LifetimeFree for core::num::NonZeroU128 {}
 
 unsafe impl<T: LifetimeFree> LifetimeFree for [T] {}
 #[rustversion::since(1.51)]
