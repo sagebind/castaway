@@ -8,3 +8,6 @@ keywords = ["specialization"]
 categories = ["no-std", "rust-patterns"]
 repository = "https://github.com/sagebind/castaway"
 edition = "2018"
+
+[features]
+std = []

@@ -10,10 +10,14 @@
 //! - [`match_type`]: Match the result of an expression against multiple
 //!   concrete types.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[doc(hidden)]
 pub mod internal;
+
+mod lifetime_free;
+
+pub use lifetime_free::LifetimeFree;
 
 /// Attempt to cast the result of an expression into a given concrete type. If
 /// the expression is in fact of the given type, an [`Ok`] is returned
@@ -128,29 +132,14 @@ pub mod internal;
 /// ```
 #[macro_export]
 macro_rules! cast {
-    ($value:expr, bool) => {
-        $crate::cast!(@primitive $value, bool)
-    };
-
-    ($value:expr, i32) => {
-        $crate::cast!(@primitive $value, i32)
-    };
-
-    (@primitive $value:expr, $U:tt) => {{
+    // TODO: Don't require `lifetime_free` disambiguating prefix.
+    ($value:expr, lifetime_free $U:tt) => {{
         $crate::internal::try_cast_lifetime_free::<_, $U>($value)
     }};
 
     ($value:expr, $T:ty) => {{
         #[allow(unused_imports)]
-        use $crate::internal::{
-            CastToken,
-            TryCastMut,
-            TryCastOwned,
-            TryCastRef,
-            TryCastSliceMut,
-            TryCastSliceRef,
-            // TryCastLifetimeFree,
-        };
+        use $crate::internal::prelude::*;
 
         // Here we are using an _autoderef specialization_ technique, which
         // exploits method resolution autoderefs to select different cast
@@ -308,7 +297,7 @@ mod tests {
     #[test]
     fn cast_primitive_non_static() {
         fn inner<T>(value: T) -> bool {
-            cast!(value, bool).is_ok()
+            cast!(value, lifetime_free bool).is_ok()
         }
 
         assert!(!inner(0u8));

@@ -8,6 +8,19 @@ use core::{
     mem,
     ptr,
 };
+use crate::lifetime_free::LifetimeFree;
+
+pub mod prelude {
+    pub use super::{
+        CastToken,
+        TryCastMut,
+        TryCastOwned,
+        TryCastRef,
+        TryCastSliceMut,
+        TryCastSliceRef,
+        // TryCastLifetimeFree,
+    };
+}
 
 /// A token struct used to capture the type of a value without taking ownership of
 /// it. Used to select a cast implementation in macros.
@@ -117,21 +130,7 @@ pub trait TryCastLifetimeFree<T> {
     }
 }
 
-impl<T> TryCastLifetimeFree<T> for CastToken<T> {}
-
-/// Marker trait for types that do not contain any lifetime parameters. Such types
-/// are safe to cast from non-static sources if their types are equal.
-pub unsafe trait LifetimeFree: 'static {}
-
-unsafe impl LifetimeFree for bool {}
-unsafe impl LifetimeFree for u8 {}
-unsafe impl LifetimeFree for u16 {}
-unsafe impl LifetimeFree for u32 {}
-unsafe impl LifetimeFree for u64 {}
-unsafe impl LifetimeFree for i8 {}
-unsafe impl LifetimeFree for i16 {}
-unsafe impl LifetimeFree for i32 {}
-unsafe impl LifetimeFree for i64 {}
+impl<T> TryCastLifetimeFree<T> for &&&&&CastToken<T> {}
 
 /// Attempt to cast a potentially non-static value to a given lifetime-free type
 /// if the types are equal.
@@ -148,6 +147,17 @@ pub fn try_cast_lifetime_free<T, U: LifetimeFree>(value: T) -> Result<U, T> {
 
     if type_eq_non_static::<T, U>() {
         Ok(unsafe { transmute_owned::<T, U>(value) })
+    } else {
+        Err(value)
+    }
+}
+
+/// Attempt to cast a reference to a potentially non-static value to a reference
+/// of a given lifetime-free type if the types are equal.
+#[inline(always)]
+pub fn try_cast_lifetime_free_ref<T: ?Sized, U: LifetimeFree + ?Sized>(value: &T) -> Result<&U, &T> {
+    if type_eq_non_static::<T, U>() {
+        Ok(unsafe { transmute_owned::<&T, &U>(value) })
     } else {
         Err(value)
     }
@@ -170,33 +180,31 @@ fn type_eq<T: 'static, U: 'static>() -> bool {
 /// Determine if two generic types which may not be static are equal to each
 /// other.
 ///
-/// This function must be used with extreme discretion, as no lifetime checking is
-/// done.
+/// This function must be used with extreme discretion, as no lifetime checking
+/// is done. Meaning, this function considers `Struct<'a>` to be equal to
+/// `Struct<'b>`, even if either `'a` or `'b` outlives the other.
 #[inline(always)]
-fn type_eq_non_static<T, U>() -> bool {
+fn type_eq_non_static<T: ?Sized, U: ?Sized>() -> bool {
     // Inline has a weird, but desirable result on this function. It can't be
     // fully inlined everywhere since it creates a function pointer of itself.
     // But in practice when used here, the act of taking the address will be
     // inlined, thus avoiding a function call when comparing two types.
     #[inline]
-    fn type_id_of<T>() -> usize {
+    fn type_id_of<T: ?Sized>() -> usize {
         type_id_of::<T> as usize
     }
 
-    mem::size_of::<T>() == mem::size_of::<U>()
-        && mem::align_of::<T>() == mem::align_of::<U>()
-        && mem::needs_drop::<T>() == mem::needs_drop::<U>()
-        // What we're doing here is comparing two function pointers of the same
-        // generic function to see if they are identical. If they are not
-        // identical then `T` and `U` are not the same type.
-        //
-        // If they are equal, then they _might_ be the same type, unless an
-        // optimization step reduced two different functions to the same
-        // implementation due to having the same body. To avoid this we are using
-        // a function which references itself. This is something that LLVM cannot
-        // merge, since each monomorphized function has a reference to a different
-        // global alias.
-        && type_id_of::<T>() == type_id_of::<U>()
+    // What we're doing here is comparing two function pointers of the same
+    // generic function to see if they are identical. If they are not
+    // identical then `T` and `U` are not the same type.
+    //
+    // If they are equal, then they _might_ be the same type, unless an
+    // optimization step reduced two different functions to the same
+    // implementation due to having the same body. To avoid this we are using
+    // a function which references itself. This is something that LLVM cannot
+    // merge, since each monomorphized function has a reference to a different
+    // global alias.
+    type_id_of::<T>() == type_id_of::<U>()
         // This is used as a sanity check more than anything. Our previous calls
         // should not have any false positives, but if they did then the odds of
         // them having the same type name as well is extremely unlikely.
