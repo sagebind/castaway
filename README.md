@@ -5,6 +5,7 @@ Safe, zero-cost downcasting for limited compile-time specialization.
 [![Crates.io](https://img.shields.io/crates/v/castaway.svg)](https://crates.io/crates/castaway)
 [![Documentation](https://docs.rs/castaway/badge.svg)][documentation]
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Minimum supported Rust version](https://img.shields.io/badge/rustc-1.38+-yellow.svg)](#minimum-supported-rust-version)
 [![Build](https://github.com/sagebind/castaway/workflows/ci/badge.svg)](https://github.com/sagebind/castaway/actions)
 
 ## [Documentation]
@@ -45,6 +46,10 @@ fn main() {
     println!("default: {}", "hello".fast_to_string());
 }
 ```
+
+## Minimum supported Rust version
+
+The minimum supported Rust version (or _MSRV_) for Castaway is **stable Rust 1.38 or greater**, meaning we only guarantee that Castaway will compile if you use a rustc version of at least 1.38. This version is explicitly tested in CI and may only be bumped in new minor versions. Any changes to the supported minimum version will be called out in the release notes.
 
 ## What is this?
 

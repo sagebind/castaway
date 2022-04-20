@@ -8,3 +8,13 @@ keywords = ["specialization"]
 categories = ["no-std", "rust-patterns"]
 repository = "https://github.com/sagebind/castaway"
 edition = "2018"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+rustversion = "1"

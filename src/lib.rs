@@ -10,13 +10,18 @@
 //! - [`match_type`]: Match the result of an expression against multiple
 //!   concrete types.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[doc(hidden)]
 pub mod internal;
+mod lifetime_free;
+mod utils;
 
-/// Attempt to cast the result of an expression into a given concrete type. If
-/// the expression is in fact of the given type, an [`Ok`] is returned
+pub use lifetime_free::LifetimeFree;
+
+/// Attempt to cast the result of an expression into a given concrete type.
+///
+/// If the expression is in fact of the given type, an [`Ok`] is returned
 /// containing the result of the expression as that type. If the types do not
 /// match, the value is returned in an [`Err`] unchanged.
 ///
@@ -62,7 +67,24 @@ pub mod internal;
 /// - You can cast generic slices as long as the item type is `'static` and
 ///   `Sized`, but you cannot cast a generic reference to a slice or vice versa.
 ///
+/// Some exceptions are made to the above restrictions for certain types which
+/// are known to be _lifetime-free_. You can cast a generic type to any
+/// lifetime-free type by value or by reference, even if the generic type is not
+/// `'static`.
+///
+/// A type is considered lifetime-free if it contains no generic lifetime
+/// bounds, ensuring that all possible instantiations of the type are always
+/// `'static`. To mark a type as being lifetime-free and enable it to be casted
+/// to in this manner by this macro it must implement the [`LifetimeFree`]
+/// trait. This is implemented automatically for all primitive types and for
+/// several `core` types. If you enable the `std` crate feature, then it will
+/// also be implemented for several `std` types as well.
+///
 /// # Examples
+///
+/// The above restrictions are admittedly complex and can be tricky to reason
+/// about, so it is recommended to read the following examples to get a feel for
+/// what is, and what is not, supported.
 ///
 /// Performing trivial casts:
 ///
@@ -87,6 +109,17 @@ pub mod internal;
 ///
 /// assert!(is_this_a_u8(0u8));
 /// assert!(!is_this_a_u8(0u16));
+///
+/// // Note that we can also implement this without the `'static` type bound
+/// // because the only type(s) we care about casting to all implement
+/// // `LifetimeFree`:
+///
+/// fn is_this_a_u8_non_static<T>(value: T) -> bool {
+///     cast!(value, u8).is_ok()
+/// }
+///
+/// assert!(is_this_a_u8_non_static(0u8));
+/// assert!(!is_this_a_u8_non_static(0u16));
 /// ```
 ///
 /// Specialization in a blanket trait implementation:
@@ -105,14 +138,14 @@ pub mod internal;
 ///     fn fast_to_string(&self) -> String;
 /// }
 ///
-/// impl<T: Display + 'static> FastToString for T {
+/// impl<T: Display> FastToString for T {
 ///     fn fast_to_string<'local>(&'local self) -> String {
 ///         // If `T` is already a string, then take a different code path.
 ///         // After monomorphization, this check will be completely optimized
 ///         // away.
 ///         //
-///         // Note we can cast a `&'local self` to a `&'local String` as long
-///         // as both `Self` and `String` are `'static`.
+///         // Note we can cast a `&'local self` to a `&'local String` as `String`
+///         // implements `LifetimeFree`.
 ///         if let Ok(string) = cast!(self, &String) {
 ///             // Don't invoke the std::fmt machinery, just clone the string.
 ///             string.to_owned()
@@ -130,9 +163,7 @@ pub mod internal;
 macro_rules! cast {
     ($value:expr, $T:ty) => {{
         #[allow(unused_imports)]
-        use $crate::internal::{
-            CastToken, TryCastMut, TryCastOwned, TryCastRef, TryCastSliceMut, TryCastSliceRef,
-        };
+        use $crate::internal::*;
 
         // Here we are using an _autoderef specialization_ technique, which
         // exploits method resolution autoderefs to select different cast
@@ -145,8 +176,13 @@ macro_rules! cast {
         // limited to reference types require less dereferencing to invoke and
         // thus are preferred by the compiler if applicable.
         let value = $value;
-        let token = CastToken::of_val(&value);
-        let result: ::core::result::Result<$T, _> = (&&&&&token).try_cast(value);
+        let src_token = CastToken::of_val(&value);
+        let dest_token = CastToken::<$T>::of();
+
+        // Note: The number of references added here must be kept in sync with
+        // the largest number of references used by any trait implementation in
+        // the internal module.
+        let result: ::core::result::Result<$T, _> = (&&&&&&&(src_token, dest_token)).try_cast(value);
 
         result
     }};
@@ -156,8 +192,9 @@ macro_rules! cast {
     };
 }
 
-/// Match the result of an expression against multiple concrete types. You can
-/// write multiple match arms in the following syntax:
+/// Match the result of an expression against multiple concrete types.
+///
+/// You can write multiple match arms in the following syntax:
 ///
 /// ```no_compile
 /// TYPE as name => { /* expression */ }
@@ -285,6 +322,16 @@ mod tests {
 
         let result: Result<u8, u16> = cast!(0u16);
         assert_eq!(result, Err(0u16));
+    }
+
+    #[test]
+    fn cast_primitive_non_static() {
+        fn inner<T>(value: T) -> bool {
+            cast!(value, bool).is_ok()
+        }
+
+        assert!(!inner(0u8));
+        assert!(inner(true));
     }
 
     #[test]
