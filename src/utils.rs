@@ -70,7 +70,7 @@ pub(crate) fn type_eq_non_static<T: ?Sized, U: ?Sized>() -> bool {
 /// - `T` must have the same alignment as `U`
 /// - `T` must be safe to transmute into `U`
 #[inline(always)]
-pub(crate) unsafe fn transmute_owned<T, U>(value: T) -> U {
+pub(crate) unsafe fn transmute_unchecked<T, U>(value: T) -> U {
     let dest = ptr::read(&value as *const T as *const U);
     mem::forget(value);
     dest

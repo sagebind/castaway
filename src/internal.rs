@@ -9,7 +9,7 @@
 
 use crate::{
     lifetime_free::LifetimeFree,
-    utils::{transmute_owned, type_eq, type_eq_non_static},
+    utils::{transmute_unchecked, type_eq, type_eq_non_static},
 };
 use core::marker::PhantomData;
 
@@ -41,7 +41,7 @@ pub trait TryCastMutLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
             // that `&mut T` and `&mut U` have the same kind of associated
             // pointer data if they are fat pointers. But we know they are
             // identical, so we use a transmute.
-            Ok(unsafe { transmute_owned::<&mut T, &mut U>(value) })
+            Ok(unsafe { transmute_unchecked::<&mut T, &mut U>(value) })
         } else {
             Err(value)
         }
@@ -65,7 +65,7 @@ pub trait TryCastRefLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
             // that `&T` and `&U` have the same kind of associated pointer data if
             // they are fat pointers. But we know they are identical, so we use
             // a transmute.
-            Ok(unsafe { transmute_owned::<&T, &U>(value) })
+            Ok(unsafe { transmute_unchecked::<&T, &U>(value) })
         } else {
             Err(value)
         }
@@ -91,7 +91,7 @@ pub trait TryCastOwnedLifetimeFree<T, U: LifetimeFree> {
         // lifetime-free is on the implementer.
 
         if type_eq_non_static::<T, U>() {
-            Ok(unsafe { transmute_owned::<T, U>(value) })
+            Ok(unsafe { transmute_unchecked::<T, U>(value) })
         } else {
             Err(value)
         }
@@ -190,7 +190,7 @@ pub trait TryCastOwned<T: 'static, U: 'static> {
     #[inline(always)]
     fn try_cast(&self, value: T) -> Result<U, T> {
         if type_eq::<T, U>() {
-            Ok(unsafe { transmute_owned::<T, U>(value) })
+            Ok(unsafe { transmute_unchecked::<T, U>(value) })
         } else {
             Err(value)
         }
