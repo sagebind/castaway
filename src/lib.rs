@@ -138,14 +138,14 @@ pub use lifetime_free::LifetimeFree;
 ///     fn fast_to_string(&self) -> String;
 /// }
 ///
-/// impl<T: Display + 'static> FastToString for T {
+/// impl<T: Display> FastToString for T {
 ///     fn fast_to_string<'local>(&'local self) -> String {
 ///         // If `T` is already a string, then take a different code path.
 ///         // After monomorphization, this check will be completely optimized
 ///         // away.
 ///         //
-///         // Note we can cast a `&'local self` to a `&'local String` as long
-///         // as both `Self` and `String` are `'static`.
+///         // Note we can cast a `&'local self` to a `&'local String` as `String`
+///         // implements `LifetimeFree`.
 ///         if let Ok(string) = cast!(self, &String) {
 ///             // Don't invoke the std::fmt machinery, just clone the string.
 ///             string.to_owned()
