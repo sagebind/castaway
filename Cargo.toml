@@ -13,6 +13,7 @@ edition = "2018"
 all-features = true
 
 [features]
+default = ["std"]
 std = []
 
 [dependencies]
