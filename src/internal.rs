@@ -78,7 +78,7 @@ impl<'a, T, U: LifetimeFree> TryCastRefLifetimeFree<'a, T, U>
 }
 
 /// Supporting trait for autoderef specialization on lifetime-free types.
-pub trait TryCastLifetimeFree<T, U: LifetimeFree> {
+pub trait TryCastOwnedLifetimeFree<T, U: LifetimeFree> {
     #[inline(always)]
     fn try_cast(&self, value: T) -> Result<U, T> {
         // SAFETY: If `U` is lifetime-free, and the base types of `T` and `U`
@@ -98,7 +98,7 @@ pub trait TryCastLifetimeFree<T, U: LifetimeFree> {
     }
 }
 
-impl<T, U: LifetimeFree> TryCastLifetimeFree<T, U> for &&&&&(CastToken<T>, CastToken<U>) {}
+impl<T, U: LifetimeFree> TryCastOwnedLifetimeFree<T, U> for &&&&&(CastToken<T>, CastToken<U>) {}
 
 /// Supporting trait for autoderef specialization on mutable slices.
 pub trait TryCastSliceMut<'a, T: 'static, U: 'static> {

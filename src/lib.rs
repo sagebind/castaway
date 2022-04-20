@@ -182,7 +182,7 @@ macro_rules! cast {
         // Note: The number of references added here must be kept in sync with
         // the largest number of references used by any trait implementation in
         // the internal module.
-        let result: ::core::result::Result<$T, _> = (&&&&&&(src_token, dest_token)).try_cast(value);
+        let result: ::core::result::Result<$T, _> = (&&&&&&&(src_token, dest_token)).try_cast(value);
 
         result
     }};
