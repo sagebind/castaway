@@ -26,7 +26,7 @@ pub trait FastToString {
     fn fast_to_string(&self) -> String;
 }
 
-impl<T: Display + 'static> FastToString for T {
+impl<T: Display> FastToString for T {
     fn fast_to_string(&self) -> String {
         // If `T` is already a string, then take a different code path.
         // After monomorphization, this check will be completely optimized

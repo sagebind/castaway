@@ -1,7 +1,9 @@
 //! Safe, zero-cost downcasting for limited compile-time specialization.
 //!
 //! This crate works fully on stable Rust, and also does not require the
-//! standard library.
+//! standard library. To disable references to the standard library, you must
+//! opt-out of the `std` feature using `default-features = false` in your
+//! `Cargo.toml` file.
 //!
 //! Castaway provides the following key macros:
 //!
