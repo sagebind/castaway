@@ -1,6 +1,6 @@
 [package]
 name = "castaway"
-version = "0.2.0"
+version = "0.2.1"
 description = "Safe, zero-cost downcasting for limited compile-time specialization."
 authors = ["Stephen M. Coakley <me@stephencoakley.com>"]
 license = "MIT"
