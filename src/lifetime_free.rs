@@ -72,6 +72,7 @@ unsafe impl LifetimeFree for core::num::NonZeroU16 {}
 unsafe impl LifetimeFree for core::num::NonZeroU32 {}
 unsafe impl LifetimeFree for core::num::NonZeroU64 {}
 unsafe impl LifetimeFree for core::num::NonZeroU128 {}
+unsafe impl LifetimeFree for core::num::NonZeroUsize {}
 
 unsafe impl<T: LifetimeFree> LifetimeFree for [T] {}
 #[rustversion::since(1.51)]
