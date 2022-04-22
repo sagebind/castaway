@@ -327,16 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn cast_primitive_non_static() {
-        fn inner<T>(value: T) -> bool {
-            cast!(value, bool).is_ok()
-        }
-
-        assert!(!inner(0u8));
-        assert!(inner(true));
-    }
-
-    #[test]
     fn match_type() {
         let v = 42i32;
 
@@ -345,5 +335,83 @@ mod tests {
             i32 as _ => true,
             _ => false,
         }));
+    }
+
+    macro_rules! test_lifetime_free_cast {
+        () => {};
+
+        (
+            for $TARGET:ty {
+                $(
+                    $value:expr => $matches:pat $(if $guard:expr)?,
+                )+
+            }
+            $($tail:tt)*
+        ) => {
+            paste::paste! {
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_ $TARGET>]() {
+                    fn do_cast<T>(value: T) -> Result<$TARGET, T> {
+                        cast!(value, $TARGET)
+                    }
+
+                    $(
+                        assert!(matches!(do_cast($value), $matches $(if $guard)*));
+                    )*
+                }
+
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_ref_ $TARGET>]() {
+                    fn do_cast<T>(value: &T) -> Result<&$TARGET, &T> {
+                        cast!(value, &$TARGET)
+                    }
+
+                    $(
+                        assert!(matches!(do_cast(&$value).map(|t| t.clone()).map_err(|e| e.clone()), $matches $(if $guard)*));
+                    )*
+                }
+
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_mut_ $TARGET>]() {
+                    fn do_cast<T>(value: &mut T) -> Result<&mut $TARGET, &mut T> {
+                        cast!(value, &mut $TARGET)
+                    }
+
+                    $(
+                        assert!(matches!(do_cast(&mut $value).map(|t| t.clone()).map_err(|e| e.clone()), $matches $(if $guard)*));
+                    )*
+                }
+            }
+
+            test_lifetime_free_cast! {
+                $($tail)*
+            }
+        };
+    }
+
+    test_lifetime_free_cast! {
+        for bool {
+            0u8 => Err(_),
+            true => Ok(true),
+        }
+
+        for u8 {
+            0u8 => Ok(0u8),
+            1u16 => Err(1u16),
+            42u8 => Ok(42u8),
+        }
+
+        for f32 {
+            3.2f32 => Ok(v) if v == 3.2,
+            3.2f64 => Err(_),
+        }
+
+        for String {
+            String::from("hello world") => Ok(v) if v.as_str() == "hello world",
+            "hello world" => Err("hello world"),
+        }
     }
 }
