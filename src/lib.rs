@@ -341,6 +341,66 @@ mod tests {
         () => {};
 
         (
+            for $TARGET:ty as $name:ident {
+                $(
+                    $value:expr => $matches:pat $(if $guard:expr)?,
+                )+
+            }
+            $($tail:tt)*
+        ) => {
+            paste::paste! {
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_ $name>]() {
+                    fn do_cast<T>(value: T) -> Result<$TARGET, T> {
+                        cast!(value, $TARGET)
+                    }
+
+                    $(
+                        assert!(match do_cast($value) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
+                    )*
+                }
+
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_ref_ $name>]() {
+                    fn do_cast<T>(value: &T) -> Result<&$TARGET, &T> {
+                        cast!(value, &$TARGET)
+                    }
+
+                    $(
+                        assert!(match do_cast(&$value).map(|t| t.clone()).map_err(|e| e.clone()) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
+                    )*
+                }
+
+                #[test]
+                #[allow(non_snake_case)]
+                fn [<cast_lifetime_free_mut_ $name>]() {
+                    fn do_cast<T>(value: &mut T) -> Result<&mut $TARGET, &mut T> {
+                        cast!(value, &mut $TARGET)
+                    }
+
+                    $(
+                        assert!(match do_cast(&mut $value).map(|t| t.clone()).map_err(|e| e.clone()) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
+                    )*
+                }
+            }
+
+            test_lifetime_free_cast! {
+                $($tail)*
+            }
+        };
+
+        (
             for $TARGET:ty {
                 $(
                     $value:expr => $matches:pat $(if $guard:expr)?,
@@ -357,7 +417,10 @@ mod tests {
                     }
 
                     $(
-                        assert!(matches!(do_cast($value), $matches $(if $guard)*));
+                        assert!(match do_cast($value) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
                     )*
                 }
 
@@ -369,7 +432,10 @@ mod tests {
                     }
 
                     $(
-                        assert!(matches!(do_cast(&$value).map(|t| t.clone()).map_err(|e| e.clone()), $matches $(if $guard)*));
+                        assert!(match do_cast(&$value).map(|t| t.clone()).map_err(|e| e.clone()) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
                     )*
                 }
 
@@ -381,7 +447,10 @@ mod tests {
                     }
 
                     $(
-                        assert!(matches!(do_cast(&mut $value).map(|t| t.clone()).map_err(|e| e.clone()), $matches $(if $guard)*));
+                        assert!(match do_cast(&mut $value).map(|t| t.clone()).map_err(|e| e.clone()) {
+                            $matches $(if $guard)* => true,
+                            _ => false,
+                        });
                     )*
                 }
             }
@@ -406,12 +475,17 @@ mod tests {
 
         for f32 {
             3.2f32 => Ok(v) if v == 3.2,
-            3.2f64 => Err(_),
+            3.2f64 => Err(v) if v == 3.2f64,
         }
 
         for String {
             String::from("hello world") => Ok(v) if v.as_str() == "hello world",
             "hello world" => Err("hello world"),
+        }
+
+        for Option<u8> as Option_u8 {
+            0u8 => Err(0u8),
+            Some(42u8) => Ok(Some(42u8)),
         }
     }
 }
