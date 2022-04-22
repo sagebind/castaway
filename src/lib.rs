@@ -479,7 +479,7 @@ mod tests {
         }
 
         for String {
-            String::from("hello world") => Ok(v) if v.as_str() == "hello world",
+            String::from("hello world") => Ok(ref v) if v.as_str() == "hello world",
             "hello world" => Err("hello world"),
         }
 
