@@ -127,6 +127,7 @@ pub use lifetime_free::LifetimeFree;
 /// Specialization in a blanket trait implementation:
 ///
 /// ```
+/// # #[cfg(feature = "std")] {
 /// use std::fmt::Display;
 /// use castaway::cast;
 ///
@@ -160,6 +161,7 @@ pub use lifetime_free::LifetimeFree;
 ///
 /// println!("specialized: {}", String::from("hello").fast_to_string());
 /// println!("default: {}", "hello".fast_to_string());
+/// # }
 /// ```
 #[macro_export]
 macro_rules! cast {
@@ -311,6 +313,7 @@ mod tests {
 
         inner2(&slice);
 
+        #[allow(clippy::needless_lifetimes)]
         fn inner3<'a>(value: &'a mut [u8]) {
             assert_eq!(cast!(value, &mut [u8]), Ok(&mut [1, 1][..]));
         }
@@ -341,6 +344,7 @@ mod tests {
         () => {};
 
         (
+            $(#[$meta:meta])*
             for $TARGET:ty as $name:ident {
                 $(
                     $value:expr => $matches:pat $(if $guard:expr)?,
@@ -349,6 +353,7 @@ mod tests {
             $($tail:tt)*
         ) => {
             paste::paste! {
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ $name>]() {
@@ -364,6 +369,7 @@ mod tests {
                     )*
                 }
 
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ref_ $name>]() {
@@ -379,6 +385,7 @@ mod tests {
                     )*
                 }
 
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_mut_ $name>]() {
@@ -401,6 +408,7 @@ mod tests {
         };
 
         (
+            $(#[$meta:meta])*
             for $TARGET:ty {
                 $(
                     $value:expr => $matches:pat $(if $guard:expr)?,
@@ -409,6 +417,7 @@ mod tests {
             $($tail:tt)*
         ) => {
             paste::paste! {
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ $TARGET>]() {
@@ -424,6 +433,7 @@ mod tests {
                     )*
                 }
 
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ref_ $TARGET>]() {
@@ -439,6 +449,7 @@ mod tests {
                     )*
                 }
 
+                $(#[$meta])*
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_mut_ $TARGET>]() {
@@ -478,6 +489,7 @@ mod tests {
             3.2f64 => Err(v) if v == 3.2f64,
         }
 
+        #[cfg(feature = "std")]
         for String {
             String::from("hello world") => Ok(ref v) if v.as_str() == "hello world",
             "hello world" => Err("hello world"),
