@@ -19,6 +19,38 @@ pub(crate) fn type_eq<T: 'static, U: 'static>() -> bool {
         && type_name::<T>() == type_name::<U>()
 }
 
+fn type_name_of<T>(_: T) -> &'static str {
+    type_name::<T>()
+}
+
+#[derive(Eq, PartialEq)]
+struct TypeIdNonStatic {
+    id: usize,
+    fn_typename: &'static str,
+
+    type_name: &'static str,
+}
+
+impl TypeIdNonStatic {
+    // Inline has a weird, but desirable result on this function. It can't be
+    // fully inlined everywhere since it creates a function pointer of itself.
+    // But in practice when used here, the act of taking the address will be
+    // inlined, thus avoiding a function call when comparing two types.
+    #[inline]
+    fn of<T: ?Sized>() -> Self {
+        Self {
+            // Use self-ref to prevent LLVM from merging them.
+            id: Self::of::<T> as usize,
+            // Use function type name to avoid false positive
+            // and prevent LLVM from mering them.
+            fn_typename: type_name_of(Self::of::<T>),
+
+            // Same here
+            type_name: type_name::<T>(),
+        }
+    }
+}
+
 /// Determine if two generic types which may not be static are equal to each
 /// other.
 ///
@@ -27,15 +59,6 @@ pub(crate) fn type_eq<T: 'static, U: 'static>() -> bool {
 /// `Struct<'b>`, even if either `'a` or `'b` outlives the other.
 #[inline(always)]
 pub(crate) fn type_eq_non_static<T: ?Sized, U: ?Sized>() -> bool {
-    // Inline has a weird, but desirable result on this function. It can't be
-    // fully inlined everywhere since it creates a function pointer of itself.
-    // But in practice when used here, the act of taking the address will be
-    // inlined, thus avoiding a function call when comparing two types.
-    #[inline]
-    fn type_id_of<T: ?Sized>() -> usize {
-        type_id_of::<T> as usize
-    }
-
     // What we're doing here is comparing two function pointers of the same
     // generic function to see if they are identical. If they are not
     // identical then `T` and `U` are not the same type.
@@ -46,11 +69,7 @@ pub(crate) fn type_eq_non_static<T: ?Sized, U: ?Sized>() -> bool {
     // a function which references itself. This is something that LLVM cannot
     // merge, since each monomorphized function has a reference to a different
     // global alias.
-    type_id_of::<T>() == type_id_of::<U>()
-        // This is used as a sanity check more than anything. Our previous calls
-        // should not have any false positives, but if they did then the odds of
-        // them having the same type name as well is extremely unlikely.
-        && type_name::<T>() == type_name::<U>()
+    TypeIdNonStatic::of::<T>() == TypeIdNonStatic::of::<U>()
 }
 
 /// Reinterprets the bits of a value of one type as another type.
