@@ -12,7 +12,13 @@
 //! - [`match_type`]: Match the result of an expression against multiple
 //!   concrete types.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 #[doc(hidden)]
 pub mod internal;
@@ -278,6 +284,9 @@ macro_rules! match_type {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "alloc")]
+    use alloc::string::String;
+
     #[test]
     fn cast() {
         assert_eq!(cast!(0u8, u16), Err(0u8));
@@ -489,7 +498,7 @@ mod tests {
             3.2f64 => Err(v) if v == 3.2f64,
         }
 
-        #[cfg(feature = "std")]
+        #[cfg(feature = "alloc")]
         for String {
             String::from("hello world") => Ok(ref v) if v.as_str() == "hello world",
             "hello world" => Err("hello world"),

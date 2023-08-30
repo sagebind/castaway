@@ -83,13 +83,15 @@ unsafe impl<T: LifetimeFree> LifetimeFree for core::num::Wrapping<T> {}
 unsafe impl<T: LifetimeFree> LifetimeFree for core::cell::Cell<T> {}
 unsafe impl<T: LifetimeFree> LifetimeFree for core::cell::RefCell<T> {}
 
-#[cfg(feature = "std")]
-mod std_impls {
+#[cfg(feature = "alloc")]
+mod alloc_impls {
     use super::LifetimeFree;
 
-    unsafe impl LifetimeFree for String {}
+    unsafe impl LifetimeFree for alloc::string::String {}
 
-    unsafe impl<T: LifetimeFree> LifetimeFree for Box<T> {}
-    unsafe impl<T: LifetimeFree> LifetimeFree for Vec<T> {}
-    unsafe impl<T: LifetimeFree> LifetimeFree for std::sync::Arc<T> {}
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::boxed::Box<T> {}
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::vec::Vec<T> {}
+
+    #[cfg(target_has_atomic = "ptr")]
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::sync::Arc<T> {}
 }

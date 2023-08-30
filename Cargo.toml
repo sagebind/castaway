@@ -14,7 +14,8 @@ all-features = true
 
 [features]
 default = ["std"]
-std = []
+std = ["alloc"]
+alloc = []
 
 [dependencies]
 rustversion = "1"
