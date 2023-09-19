@@ -2,7 +2,7 @@
 /// types are safe to cast from non-static type parameters if their types are
 /// equal.
 ///
-/// This trait is used by [`cast!`] to determine what casts are legal on values
+/// This trait is used by [`cast!`](crate::cast) to determine what casts are legal on values
 /// without a `'static` type constraint.
 ///
 /// # Safety

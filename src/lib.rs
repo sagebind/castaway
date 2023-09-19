@@ -3,7 +3,9 @@
 //! This crate works fully on stable Rust, and also does not require the
 //! standard library. To disable references to the standard library, you must
 //! opt-out of the `std` feature using `default-features = false` in your
-//! `Cargo.toml` file.
+//! `Cargo.toml` file. When in no-std mode, a separate `alloc` feature flag
+//! is available to support casting to several [`alloc`] types not included
+//! in [`core`].
 //!
 //! Castaway provides the following key macros:
 //!
@@ -85,8 +87,10 @@ pub use lifetime_free::LifetimeFree;
 /// `'static`. To mark a type as being lifetime-free and enable it to be casted
 /// to in this manner by this macro it must implement the [`LifetimeFree`]
 /// trait. This is implemented automatically for all primitive types and for
-/// several `core` types. If you enable the `std` crate feature, then it will
-/// also be implemented for several `std` types as well.
+/// several [`core`] types. If you enable the `std` crate feature, then it will
+/// also be implemented for several [`std`] types as well. If you enable the
+/// `alloc` crate feature, then it will be implemented for several [`alloc`]
+/// types without linking to the standard library as the `std` feature would.
 ///
 /// # Examples
 ///
