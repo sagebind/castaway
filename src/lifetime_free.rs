@@ -92,6 +92,6 @@ mod alloc_impls {
     unsafe impl<T: LifetimeFree> LifetimeFree for alloc::boxed::Box<T> {}
     unsafe impl<T: LifetimeFree> LifetimeFree for alloc::vec::Vec<T> {}
 
-    #[cfg(target_has_atomic = "ptr")]
+    #[rustversion::attr(since(1.60), cfg(target_has_atomic = "ptr"))]
     unsafe impl<T: LifetimeFree> LifetimeFree for alloc::sync::Arc<T> {}
 }
