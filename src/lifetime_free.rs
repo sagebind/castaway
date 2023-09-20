@@ -83,6 +83,27 @@ unsafe impl<T: LifetimeFree> LifetimeFree for core::num::Wrapping<T> {}
 unsafe impl<T: LifetimeFree> LifetimeFree for core::cell::Cell<T> {}
 unsafe impl<T: LifetimeFree> LifetimeFree for core::cell::RefCell<T> {}
 
+macro_rules! tuple_impls {
+    ($( $( $name:ident )+, )+) => {
+        $(
+            unsafe impl<$($name: LifetimeFree),+> LifetimeFree for ($($name,)+) {}
+        )+
+    };
+}
+
+tuple_impls! {
+    T0,
+    T0 T1,
+    T0 T1 T2,
+    T0 T1 T2 T3,
+    T0 T1 T2 T3 T4,
+    T0 T1 T2 T3 T4 T5,
+    T0 T1 T2 T3 T4 T5 T6,
+    T0 T1 T2 T3 T4 T5 T6 T7,
+    T0 T1 T2 T3 T4 T5 T6 T7 T8,
+    T0 T1 T2 T3 T4 T5 T6 T7 T8 T9,
+}
+
 #[cfg(feature = "alloc")]
 mod alloc_impls {
     use super::LifetimeFree;
