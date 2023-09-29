@@ -2,7 +2,7 @@
 /// types are safe to cast from non-static type parameters if their types are
 /// equal.
 ///
-/// This trait is used by [`cast!`] to determine what casts are legal on values
+/// This trait is used by [`cast!`](crate::cast) to determine what casts are legal on values
 /// without a `'static` type constraint.
 ///
 /// # Safety
@@ -104,13 +104,15 @@ tuple_impls! {
     T0 T1 T2 T3 T4 T5 T6 T7 T8 T9,
 }
 
-#[cfg(feature = "std")]
-mod std_impls {
+#[cfg(feature = "alloc")]
+mod alloc_impls {
     use super::LifetimeFree;
 
-    unsafe impl LifetimeFree for String {}
+    unsafe impl LifetimeFree for alloc::string::String {}
 
-    unsafe impl<T: LifetimeFree> LifetimeFree for Box<T> {}
-    unsafe impl<T: LifetimeFree> LifetimeFree for Vec<T> {}
-    unsafe impl<T: LifetimeFree> LifetimeFree for std::sync::Arc<T> {}
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::boxed::Box<T> {}
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::vec::Vec<T> {}
+
+    #[rustversion::attr(since(1.60), cfg(target_has_atomic = "ptr"))]
+    unsafe impl<T: LifetimeFree> LifetimeFree for alloc::sync::Arc<T> {}
 }
