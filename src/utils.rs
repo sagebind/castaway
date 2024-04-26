@@ -20,7 +20,7 @@ pub(crate) fn type_eq<T: 'static, U: 'static>() -> bool {
         && type_name::<T>() == type_name::<U>()
 }
 
-/// Determine if two generic types which may not be static are equal to each
+/// Determine if two generic types (which might not be static) are equal to each
 /// other.
 ///
 /// This function must be used with extreme discretion, as no lifetime checking
@@ -49,10 +49,12 @@ fn non_static_type_id<T: ?Sized>() -> TypeId {
         }
     }
 
-    let phantom_data = PhantomData::<T>;
-    NonStaticAny::get_type_id(unsafe {
-        mem::transmute::<&dyn NonStaticAny, &(dyn NonStaticAny + 'static)>(&phantom_data)
-    })
+    {
+        let phantom_data = PhantomData::<T>;
+        NonStaticAny::get_type_id(unsafe {
+            mem::transmute::<&dyn NonStaticAny, &(dyn NonStaticAny + 'static)>(&phantom_data)
+        })
+    }
 }
 
 /// Reinterprets the bits of a value of one type as another type.

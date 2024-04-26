@@ -7,7 +7,7 @@ license = "MIT"
 keywords = ["specialization", "specialize", "cast"]
 categories = ["no-std", "rust-patterns"]
 repository = "https://github.com/sagebind/castaway"
-edition = "2018"
+edition = "2021"
 
 [package.metadata.docs.rs]
 all-features = true

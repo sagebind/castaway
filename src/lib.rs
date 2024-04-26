@@ -15,6 +15,9 @@
 //!   concrete types.
 
 #![no_std]
+#![feature(const_type_id)]
+#![feature(const_trait_impl)]
+#![feature(effects)]
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -196,7 +199,7 @@ macro_rules! cast {
         // Note: The number of references added here must be kept in sync with
         // the largest number of references used by any trait implementation in
         // the internal module.
-        let result: ::core::result::Result<$T, _> = (&&&&&&&(src_token, dest_token)).try_cast(value);
+        let result: ::core::result::Result<$T, _> = AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer((src_token, dest_token)))))))).try_cast(value);
 
         result
     }};
@@ -341,6 +344,15 @@ mod tests {
         let result: Result<u8, u16> = cast!(0u16);
         assert_eq!(result, Err(0u16));
     }
+
+    // #[test]
+    // fn cast_const() {
+    //     const RESULT: Result<u8, u8> = cast!(0u8);
+    //     assert_eq!(RESULT, Ok(0u8));
+
+    //     const RESULT_2: Result<u8, u16> = cast!(0u16);
+    //     assert_eq!(RESULT_2, Err(0u16));
+    // }
 
     #[test]
     fn match_type() {
