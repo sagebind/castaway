@@ -180,7 +180,7 @@ pub use lifetime_free::LifetimeFree;
 macro_rules! cast {
     ($value:expr, $T:ty) => {{
         #[allow(unused_imports)]
-        use $crate::internal::*;
+        use $crate::internal::{AutoDerefLayer, TypeToken};
 
         // Here we are using an _autoderef specialization_ technique, which
         // exploits method resolution autoderefs to select different cast
@@ -193,13 +193,17 @@ macro_rules! cast {
         // limited to reference types require less dereferencing to invoke and
         // thus are preferred by the compiler if applicable.
         let value = $value;
-        let src_token = CastToken::of_val(&value);
-        let dest_token = CastToken::<$T>::of();
+        let src_token = TypeToken::of_val(&value);
+        let dest_token = TypeToken::<$T>::of();
 
         // Note: The number of references added here must be kept in sync with
         // the largest number of references used by any trait implementation in
         // the internal module.
-        let result: ::core::result::Result<$T, _> = AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer((src_token, dest_token)))))))).try_cast(value);
+        let result: ::core::result::Result<$T, _> =
+            AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(AutoDerefLayer(
+                AutoDerefLayer(AutoDerefLayer(AutoDerefLayer((src_token, dest_token)))),
+            ))))
+            .try_cast(value);
 
         result
     }};
