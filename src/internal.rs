@@ -9,9 +9,25 @@
 
 use crate::{
     lifetime_free::LifetimeFree,
-    utils::{transmute_unchecked, type_eq, type_eq_non_static},
+    utils::{transmute_unchecked, type_eq, type_eq_non_static, TypeEq},
 };
 use core::{marker::PhantomData, ops::Deref};
+
+/// A token struct used to capture a type without taking ownership of any
+/// values. Used to select a cast implementation in macros.
+pub struct TypeToken<T: ?Sized>(PhantomData<T>);
+
+impl<T: ?Sized> TypeToken<T> {
+    /// Create a token for the given type of value.
+    pub const fn of_val(_value: &T) -> Self {
+        Self::of()
+    }
+
+    /// Create a new token of the specified type.
+    pub const fn of() -> Self {
+        Self(PhantomData)
+    }
+}
 
 /// This type is the core of how we exercise the autoderef trick. Rather than
 /// using traits implementing a method at different reference levels, the target
@@ -30,100 +46,126 @@ impl<T> Deref for AutoDerefLayer<AutoDerefLayer<T>> {
     }
 }
 
-/// A token struct used to capture a type without taking ownership of any
-/// values. Used to select a cast implementation in macros.
-pub struct TypeToken<T: ?Sized>(PhantomData<T>);
+/// Generates multiple `try_cast` methods implemented at different nesting levels
+/// of the `AutoDerefLayer` type. Priority of each implementation is ordered from
+/// lowest to highest in the order they are defined.
+macro_rules! define_try_cast {
+    ({ $($struct_prefix:tt)* }, { $($struct_postfix:tt)* }, {
+        $(#[$meta:meta])*
+        impl<($($bounds:tt)*)> const fn ($value:ident: $T:ty) -> Result<$U:ty, $TT:ty> {
+            $($body:tt)*
+        }
 
-impl<T: ?Sized> TypeToken<T> {
-    /// Create a token for the given type of value.
-    pub const fn of_val(_value: &T) -> Self {
-        Self::of()
-    }
+        $($tail:tt)*
+    }) => {
+        impl<$($bounds)*> $($struct_prefix)* (TypeToken<$T>, TypeToken<$U>) $($struct_postfix)* {
+            $(#[$meta])*
+            #[inline(always)]
+            pub const fn try_cast(&self, $value: $T) -> Result<$U, $TT> {
+                $($body)*
+            }
+        }
 
-    /// Create a new token of the specified type.
-    pub const fn of() -> Self {
-        Self(PhantomData)
-    }
+        define_try_cast!({ AutoDerefLayer< $($struct_prefix)* }, { $($struct_postfix)* > }, {
+            $($tail)*
+        });
+    };
+
+    ({ $($struct_prefix:tt)* }, { $($struct_postfix:tt)* }, {
+        $(#[$meta:meta])*
+        impl<($($bounds:tt)*)> fn ($value:ident: $T:ty) -> Result<$U:ty, $TT:ty> {
+            $($body:tt)*
+        }
+
+        $($tail:tt)*
+    }) => {
+        impl<$($bounds)*> $($struct_prefix)* (TypeToken<$T>, TypeToken<$U>) $($struct_postfix)* {
+            $(#[$meta])*
+            #[inline(always)]
+            pub fn try_cast(&self, $value: $T) -> Result<$U, $TT> {
+                $($body)*
+            }
+        }
+
+        define_try_cast!({ AutoDerefLayer< $($struct_prefix)* }, { $($struct_postfix)* > }, {
+            $($tail)*
+        });
+    };
+
+    ({ $($struct_prefix:tt)* }, { $($struct_postfix:tt)* }, {}) => {};
+
+    ($($tail:tt)+) => {
+        define_try_cast!({ AutoDerefLayer< }, { > }, {
+            $($tail)*
+        });
+    };
 }
 
-/// Supporting trait for autoderef specialization on mutable references to lifetime-free
-/// types.
-///
-/// TryCastMutLifetimeFree
-impl<'a, T, U: LifetimeFree>
-    AutoDerefLayer<
-        AutoDerefLayer<
-            AutoDerefLayer<
-                AutoDerefLayer<
-                    AutoDerefLayer<
-                        AutoDerefLayer<
-                            AutoDerefLayer<(TypeToken<&'a mut T>, TypeToken<&'a mut U>)>,
-                        >,
-                    >,
-                >,
-            >,
-        >,
-    >
-{
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
-        // SAFETY: See comments on safety in `TryCastLifetimeFree`.
-
-        if type_eq_non_static::<T, U>() {
-            // Pointer casts are not allowed here since the compiler can't prove
-            // that `&mut T` and `&mut U` have the same kind of associated
-            // pointer data if they are fat pointers. But we know they are
-            // identical, so we use a transmute.
-            Ok(unsafe { transmute_unchecked::<&mut T, &mut U>(value) })
+define_try_cast! {
+    /// Attempt to cast a value to a given type if the types are equal.
+    ///
+    /// This is the default `try_cast` implementation.
+    impl<(T: 'static, U: 'static)> const fn (value: T) -> Result<U, T> {
+        if const { type_eq::<T, U>() } {
+            Ok(unsafe { transmute_unchecked::<T, U>(value) })
         } else {
             Err(value)
         }
     }
-}
 
-/// Supporting trait for autoderef specialization on references to lifetime-free
-/// types.
-///
-/// TryCastRefLifetimeFree
-impl<'a, T, U: LifetimeFree>
-    AutoDerefLayer<
-        AutoDerefLayer<
-            AutoDerefLayer<
-                AutoDerefLayer<
-                    AutoDerefLayer<AutoDerefLayer<(TypeToken<&'a T>, TypeToken<&'a U>)>>,
-                >,
-            >,
-        >,
-    >
-{
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a T) -> Result<&'a U, &'a T> {
-        // SAFETY: See comments on safety in `TryCastLifetimeFree`.
-
-        if type_eq_non_static::<T, U>() {
-            // Pointer casts are not allowed here since the compiler can't prove
-            // that `&T` and `&U` have the same kind of associated pointer data if
-            // they are fat pointers. But we know they are identical, so we use
-            // a transmute.
-            Ok(unsafe { transmute_unchecked::<&T, &U>(value) })
+    /// Attempt to cast a generic reference to a given type if the types are
+    /// equal.
+    ///
+    /// The reference does not have to be static as long as the reference target
+    /// type is static.
+    impl<('a, T: 'static, U: 'static)> const fn (value: &'a T) -> Result<&'a U, &'a T> {
+        if <T as TypeEq<U>>::EQ {
+            Ok(unsafe { &*(value as *const T as *const U) })
         } else {
             Err(value)
         }
     }
-}
 
-/// Supporting trait for autoderef specialization on lifetime-free types.
-///
-/// TryCastOwnedLifetimeFree
-impl<'a, T, U: LifetimeFree>
-    AutoDerefLayer<
-        AutoDerefLayer<
-            AutoDerefLayer<AutoDerefLayer<AutoDerefLayer<(TypeToken<T>, TypeToken<U>)>>>,
-        >,
-    >
-{
-    #[inline(always)]
-    pub fn try_cast(&self, value: T) -> Result<U, T> {
+    /// Attempt to cast a generic mutable reference to a given type if the types
+    /// are equal.
+    ///
+    /// The reference does not have to be static as long as the reference target
+    /// type is static.
+    impl<('a, T: 'static, U: 'static)> fn (value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
+        if const { type_eq::<T, U>() } {
+            Ok(unsafe { &mut *(value as *mut T as *mut U) })
+        } else {
+            Err(value)
+        }
+    }
+
+    /// Attempt to cast a generic slice to a given type if the types are equal.
+    ///
+    /// The reference does not have to be static as long as the item type is
+    /// static.
+    impl<('a, T: 'static, U: 'static)> const fn (value: &'a [T]) -> Result<&'a [U], &'a [T]> {
+        if type_eq::<T, U>() {
+            Ok(unsafe { &*(value as *const [T] as *const [U]) })
+        } else {
+            Err(value)
+        }
+    }
+
+    /// Attempt to cast a generic mutable slice to a given type if the types are
+    /// equal.
+    ///
+    /// The reference does not have to be static as long as the item type is
+    /// static.
+    impl<('a, T: 'static, U: 'static)> fn (value: &'a mut [T]) -> Result<&'a mut [U], &'a mut [T]> {
+        if const { type_eq::<T, U>() } {
+            Ok(unsafe { &mut *(value as *mut [T] as *mut [U]) })
+        } else {
+            Err(value)
+        }
+    }
+
+    /// Supporting trait for autoderef specialization on lifetime-free types.
+    impl<(T, U: LifetimeFree)> fn (value: T) -> Result<U, T> {
         // SAFETY: If `U` is lifetime-free, and the base types of `T` and `U`
         // are equal, then `T` is also lifetime-free. Therefore `T` and `U` are
         // strictly identical and it is safe to cast a `T` into a `U`.
@@ -139,101 +181,34 @@ impl<'a, T, U: LifetimeFree>
             Err(value)
         }
     }
-}
 
-/// Supporting trait for autoderef specialization on mutable slices.
-///
-/// TryCastSliceMut
-impl<'a, T: 'static, U: 'static>
-    AutoDerefLayer<
-        AutoDerefLayer<
-            AutoDerefLayer<AutoDerefLayer<(TypeToken<&'a mut [T]>, TypeToken<&'a mut [U]>)>>,
-        >,
-    >
-{
-    /// Attempt to cast a generic mutable slice to a given type if the types are
-    /// equal.
-    ///
-    /// The reference does not have to be static as long as the item type is
-    /// static.
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a mut [T]) -> Result<&'a mut [U], &'a mut [T]> {
-        std::dbg!();
-        if type_eq::<T, U>() {
-            Ok(unsafe { &mut *(value as *mut [T] as *mut [U]) })
+    /// Supporting trait for autoderef specialization on references to
+    /// lifetime-free types.
+    impl<('a, T, U: LifetimeFree)> fn (value: &'a T) -> Result<&'a U, &'a T> {
+        // SAFETY: See prior implementation.
+
+        if type_eq_non_static::<T, U>() {
+            // Pointer casts are not allowed here since the compiler can't prove
+            // that `&T` and `&U` have the same kind of associated pointer data if
+            // they are fat pointers. But we know they are identical, so we use
+            // a transmute.
+            Ok(unsafe { transmute_unchecked::<&T, &U>(value) })
         } else {
             Err(value)
         }
     }
-}
 
-/// Supporting trait for autoderef specialization on slices.
-///
-/// TryCastSliceRef
-impl<'a, T: 'static, U: 'static>
-    AutoDerefLayer<AutoDerefLayer<AutoDerefLayer<(TypeToken<&'a [T]>, TypeToken<&'a [U]>)>>>
-{
-    /// Attempt to cast a generic slice to a given type if the types are equal.
-    ///
-    /// The reference does not have to be static as long as the item type is
-    /// static.
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a [T]) -> Result<&'a [U], &'a [T]> {
-        if std::dbg!(type_eq::<T, U>()) {
-            Ok(unsafe { &*(value as *const [T] as *const [U]) })
-        } else {
-            Err(value)
-        }
-    }
-}
+    /// Supporting trait for autoderef specialization on mutable references to
+    /// lifetime-free types.
+    impl<('a, T, U: LifetimeFree)> fn (value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
+        // SAFETY: See prior implementation.
 
-/// Supporting trait for autoderef specialization on mutable references.
-///
-/// TryCastMut
-impl<'a, T: 'static, U: 'static>
-    AutoDerefLayer<AutoDerefLayer<(TypeToken<&'a mut T>, TypeToken<&'a mut U>)>>
-{
-    /// Attempt to cast a generic mutable reference to a given type if the types
-    /// are equal.
-    ///
-    /// The reference does not have to be static as long as the reference target
-    /// type is static.
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
-        if type_eq::<T, U>() {
-            Ok(unsafe { &mut *(value as *mut T as *mut U) })
-        } else {
-            Err(value)
-        }
-    }
-}
-
-impl<'a, T: 'static, U: 'static>
-    AutoDerefLayer<AutoDerefLayer<(TypeToken<&'a T>, TypeToken<&'a U>)>>
-{
-    /// Attempt to cast a generic reference to a given type if the types are
-    /// equal.
-    ///
-    /// The reference does not have to be static as long as the reference target
-    /// type is static.
-    #[inline(always)]
-    pub fn try_cast(&self, value: &'a T) -> Result<&'a U, &'a T> {
-        if type_eq::<T, U>() {
-            Ok(unsafe { &*(value as *const T as *const U) })
-        } else {
-            Err(value)
-        }
-    }
-}
-
-impl<'a, T: 'static, U: 'static> AutoDerefLayer<(TypeToken<T>, TypeToken<U>)> {
-    /// Attempt to cast a value to a given type if the types are equal.
-    ///
-    /// This is the default `try_cast` implementation.
-    #[inline(always)]
-    pub fn try_cast(&self, value: T) -> Result<U, T> {
-        if type_eq::<T, U>() {
-            Ok(unsafe { transmute_unchecked::<T, U>(value) })
+        if type_eq_non_static::<T, U>() {
+            // Pointer casts are not allowed here since the compiler can't prove
+            // that `&mut T` and `&mut U` have the same kind of associated
+            // pointer data if they are fat pointers. But we know they are
+            // identical, so we use a transmute.
+            Ok(unsafe { transmute_unchecked::<&mut T, &mut U>(value) })
         } else {
             Err(value)
         }

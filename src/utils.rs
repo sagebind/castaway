@@ -1,13 +1,9 @@
 //! Low-level utility functions.
 
-use core::{
-    any::{type_name, TypeId},
-    marker::PhantomData,
-    mem, ptr,
-};
+use core::{any::TypeId, marker::PhantomData, mem, ptr};
 
 /// Determine if two static, generic types are equal to each other.
-#[inline(always)]
+#[rustversion::attr(since(1.71), const)]
 pub(crate) fn type_eq<T: 'static, U: 'static>() -> bool {
     // Reduce the chance of `TypeId` collisions causing a problem by also
     // verifying the layouts match and the type names match. Since `T` and `U`
@@ -16,8 +12,50 @@ pub(crate) fn type_eq<T: 'static, U: 'static>() -> bool {
     mem::size_of::<T>() == mem::size_of::<U>()
         && mem::align_of::<T>() == mem::align_of::<U>()
         && mem::needs_drop::<T>() == mem::needs_drop::<U>()
-        && TypeId::of::<T>() == TypeId::of::<U>()
-        && type_name::<T>() == type_name::<U>()
+        && type_id_eq(TypeId::of::<T>(), TypeId::of::<U>())
+}
+
+pub(crate) trait TypeEq<U> {
+    const EQ: bool;
+}
+
+impl<T: 'static, U: 'static> TypeEq<U> for T {
+    const EQ: bool = type_eq::<T, U>();
+}
+
+#[rustversion::since(1.71)]
+const fn type_id_eq(lhs: TypeId, rhs: TypeId) -> bool {
+    // To do this comparison as `const` we compare the raw bytes of the two
+    // `TypeId`s to check if they are identical. In general this isn't a good way
+    // of doing this since we're relying on the internal representation of
+    // `TypeId`, which isn't very nice of us.
+    //
+    // However, as of writing, Rust has always used unsigned integers as the raw
+    // value, so this implementation works. Even if Rust began using pointers to
+    // an underlying value, this implementation would still work, unless it were
+    // possible for different pointers to be returned for the same type, which
+    // would yield false negatives.
+
+    let lhs = ptr::addr_of!(lhs).cast::<u8>();
+    let rhs = ptr::addr_of!(rhs).cast::<u8>();
+    let mut i = 0;
+
+    while i < mem::size_of::<TypeId>() {
+        unsafe {
+            if lhs.add(i).read_unaligned() != rhs.add(i).read_unaligned() {
+                return false;
+            }
+        }
+
+        i += 1;
+    }
+
+    true
+}
+
+#[rustversion::before(1.71)]
+fn type_id_eq(lhs: TypeId, rhs: TypeId) -> bool {
+    lhs == rhs
 }
 
 /// Determine if two generic types (which might not be static) are equal to each
@@ -73,6 +111,24 @@ fn non_static_type_id<T: ?Sized>() -> TypeId {
 /// - `T` must have the same size as `U`
 /// - `T` must have the same alignment as `U`
 /// - `T` must be safe to transmute into `U`
+#[rustversion::since(1.56)]
+pub(crate) const unsafe fn transmute_unchecked<T, U>(value: T) -> U {
+    use core::mem::ManuallyDrop;
+
+    union Transmute<T, U> {
+        from: ManuallyDrop<T>,
+        to: ManuallyDrop<U>,
+    }
+
+    ManuallyDrop::into_inner(
+        Transmute {
+            from: ManuallyDrop::new(value),
+        }
+        .to,
+    )
+}
+
+#[rustversion::before(1.56)]
 #[inline(always)]
 pub(crate) unsafe fn transmute_unchecked<T, U>(value: T) -> U {
     let dest = ptr::read(&value as *const T as *const U);
