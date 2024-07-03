@@ -196,7 +196,8 @@ macro_rules! cast {
         // Note: The number of references added here must be kept in sync with
         // the largest number of references used by any trait implementation in
         // the internal module.
-        let result: ::core::result::Result<$T, _> = (&&&&&&&(src_token, dest_token)).try_cast(value);
+        let result: ::core::result::Result<$T, _> =
+            (&&&&&&&&&&(src_token, dest_token)).try_cast(value);
 
         result
     }};
@@ -354,6 +355,16 @@ mod tests {
     }
 
     #[test]
+    fn cast_lifetime_free_back() {
+        fn can_cast<T>(value: u8) -> bool {
+            cast!(value, T).is_ok()
+        }
+
+        assert!(can_cast::<u8>(1));
+        assert!(!can_cast::<u32>(2));
+    }
+
+    #[test]
     fn cast_lifetime_free_unsized_ref() {
         fn can_cast<T>(value: &[T]) -> bool {
             cast!(value, &[u8]).is_ok()
@@ -366,6 +377,16 @@ mod tests {
     }
 
     #[test]
+    fn cast_lifetime_free_unsized_ref_back() {
+        fn can_cast<T>(value: &[u8]) -> bool {
+            cast!(value, &[T]).is_ok()
+        }
+
+        assert!(can_cast::<u8>(&[1_u8, 2, 3]));
+        assert!(!can_cast::<u32>(&[1_u8, 2, 3]));
+    }
+
+    #[test]
     fn cast_lifetime_free_unsized_mut() {
         fn can_cast<T>(value: &mut [T]) -> bool {
             cast!(value, &mut [u8]).is_ok()
@@ -375,6 +396,16 @@ mod tests {
         assert!(can_cast(&mut [1_u8, 2, 3, 4]));
         assert!(!can_cast(&mut [1_i8, 2, 3, 4]));
         assert!(!can_cast(&mut [&value, &value]));
+    }
+
+    #[test]
+    fn cast_lifetime_free_unsized_mut_back() {
+        fn can_cast<T>(value: &mut [u8]) -> bool {
+            cast!(value, &mut [T]).is_ok()
+        }
+
+        assert!(can_cast::<u8>(&mut [1_u8, 2, 3]));
+        assert!(!can_cast::<u32>(&mut [1_u8, 2, 3]));
     }
 
     macro_rules! test_lifetime_free_cast {
