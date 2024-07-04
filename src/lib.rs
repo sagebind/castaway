@@ -512,5 +512,15 @@ mod tests {
             0u8 => Err(0u8),
             Some(42u8) => Ok(Some(42u8)),
         }
+
+        // See https://github.com/rust-lang/rust/issues/127286 for details.
+        for (u8, u8) as TupleU8U8 {
+            (1u8, 2u8) => Ok((1u8, 2u8)),
+            1u8 => Err(1u8),
+        }
+        for (bool, u16) as TupleBoolU16 {
+            (false, 2u16) => Ok((false, 2u16)),
+            true => Err(true),
+        }
     }
 }

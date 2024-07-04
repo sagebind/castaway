@@ -64,15 +64,29 @@ fn non_static_type_id<T: ?Sized>() -> TypeId {
 /// size and layout and that it is safe to do this conversion. Which it probably
 /// isn't, unless `T` and `U` are identical.
 ///
+/// # Panics
+///
+/// This function panics if `T` and `U` have different sizes.
+///
 /// # Safety
 ///
 /// It is up to the caller to uphold the following invariants:
 ///
-/// - `T` must have the same size as `U`
 /// - `T` must have the same alignment as `U`
 /// - `T` must be safe to transmute into `U`
 #[inline(always)]
 pub(crate) unsafe fn transmute_unchecked<T, U>(value: T) -> U {
+    // Assert is necessary to avoid miscompilation caused by a bug in LLVM.
+    // Without it `castaway::cast!(123_u8, (u8, u8))` returns `Ok(...)` on
+    // release build profile. `assert` shouldn't be replaced by `assert_eq`
+    // because with `assert_eq` Rust 1.70 and 1.71 will still miscompile it.
+    //
+    // See https://github.com/rust-lang/rust/issues/127286 for details.
+    assert!(
+        mem::size_of::<T>() == mem::size_of::<U>(),
+        "cannot transmute_unchecked if Dst and Src have different size"
+    );
+
     let dest = ptr::read(&value as *const T as *const U);
     mem::forget(value);
     dest
