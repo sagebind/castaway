@@ -8,4 +8,5 @@ jobs:
   test:
     uses: sagebind/workflows/.github/workflows/rust-ci.yml@v1
     with:
-      msrv: "1.38"
+      msrv: "1.54"
+      test-release: true
