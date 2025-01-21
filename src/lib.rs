@@ -353,6 +353,30 @@ mod tests {
         }));
     }
 
+    #[test]
+    fn cast_lifetime_free_unsized_ref() {
+        fn can_cast<T>(value: &[T]) -> bool {
+            cast!(value, &[u8]).is_ok()
+        }
+
+        let value = 42i32;
+        assert!(can_cast(&[1_u8, 2, 3, 4]));
+        assert!(!can_cast(&[1_i8, 2, 3, 4]));
+        assert!(!can_cast(&[&value, &value]));
+    }
+
+    #[test]
+    fn cast_lifetime_free_unsized_mut() {
+        fn can_cast<T>(value: &mut [T]) -> bool {
+            cast!(value, &mut [u8]).is_ok()
+        }
+
+        let value = 42i32;
+        assert!(can_cast(&mut [1_u8, 2, 3, 4]));
+        assert!(!can_cast(&mut [1_i8, 2, 3, 4]));
+        assert!(!can_cast(&mut [&value, &value]));
+    }
+
     macro_rules! test_lifetime_free_cast {
         () => {};
 
