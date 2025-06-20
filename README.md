@@ -49,7 +49,7 @@ fn main() {
 
 ## Minimum supported Rust version
 
-The minimum supported Rust version (or _MSRV_) for Castaway is **stable Rust 1.38 or greater**, meaning we only guarantee that Castaway will compile if you use a rustc version of at least 1.38. This version is explicitly tested in CI and may only be bumped in new minor versions. Any changes to the supported minimum version will be called out in the release notes.
+The minimum supported Rust version (or _MSRV_) for Castaway is **stable Rust 1.38 or greater**, meaning we only guarantee that Castaway will compile if you use a rustc version of at least 1.38. Any changes to the supported minimum version will be called out in the release notes.
 
 ## What is this?
 
