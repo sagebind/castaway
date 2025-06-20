@@ -48,7 +48,7 @@ pub trait TryCastMutLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
     }
 }
 
-impl<'a, T, U: LifetimeFree> TryCastMutLifetimeFree<'a, T, U>
+impl<'a, T: ?Sized, U: LifetimeFree + ?Sized> TryCastMutLifetimeFree<'a, T, U>
     for &&&&&&&(CastToken<&'a mut T>, CastToken<&'a mut U>)
 {
 }
@@ -72,7 +72,7 @@ pub trait TryCastRefLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
     }
 }
 
-impl<'a, T, U: LifetimeFree> TryCastRefLifetimeFree<'a, T, U>
+impl<'a, T: ?Sized, U: LifetimeFree + ?Sized> TryCastRefLifetimeFree<'a, T, U>
     for &&&&&&(CastToken<&'a T>, CastToken<&'a U>)
 {
 }
