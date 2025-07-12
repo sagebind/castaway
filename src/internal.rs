@@ -30,75 +30,131 @@ impl<T: ?Sized> CastToken<T> {
 }
 
 /// Supporting trait for autoderef specialization on mutable references to lifetime-free
-/// types.
+/// target types.
 pub trait TryCastMutLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
     #[inline(always)]
     fn try_cast(&self, value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
-        // SAFETY: See comments on safety in `TryCastLifetimeFree`.
-
-        if type_eq_non_static::<T, U>() {
-            // Pointer casts are not allowed here since the compiler can't prove
-            // that `&mut T` and `&mut U` have the same kind of associated
-            // pointer data if they are fat pointers. But we know they are
-            // identical, so we use a transmute.
-            Ok(unsafe { transmute_unchecked::<&mut T, &mut U>(value) })
-        } else {
-            Err(value)
-        }
+        try_cast_mut_lifetime_free(value)
     }
 }
 
-impl<'a, T, U: LifetimeFree> TryCastMutLifetimeFree<'a, T, U>
-    for &&&&&&&(CastToken<&'a mut T>, CastToken<&'a mut U>)
+impl<'a, T: ?Sized, U: LifetimeFree + ?Sized> TryCastMutLifetimeFree<'a, T, U>
+    for &&&&&&&&&&(CastToken<&'a mut T>, CastToken<&'a mut U>)
+{
+}
+
+/// Supporting trait for autoderef specialization on mutable references to lifetime-free
+/// source types.
+pub trait TryCastMutLifetimeFreeBack<'a, T: LifetimeFree + ?Sized, U: ?Sized> {
+    #[inline(always)]
+    fn try_cast(&self, value: &'a mut T) -> Result<&'a mut U, &'a mut T> {
+        try_cast_mut_lifetime_free(value)
+    }
+}
+
+impl<'a, T: LifetimeFree + ?Sized, U: ?Sized> TryCastMutLifetimeFreeBack<'a, T, U>
+    for &&&&&&&&&(CastToken<&'a mut T>, CastToken<&'a mut U>)
+{
+}
+
+// SAFETY: Requires at least one of `T` or `U` to be `LifetimeFree`.
+#[inline(always)]
+fn try_cast_mut_lifetime_free<T: ?Sized, U: ?Sized>(value: &mut T) -> Result<&mut U, &mut T> {
+    // SAFETY: See comments on safety in `try_cast_owned_lifetime_free`.
+
+    if type_eq_non_static::<T, U>() {
+        // Pointer casts are not allowed here since the compiler can't prove
+        // that `&mut T` and `&mut U` have the same kind of associated
+        // pointer data if they are fat pointers. But we know they are
+        // identical, so we use a transmute.
+        Ok(unsafe { transmute_unchecked::<&mut T, &mut U>(value) })
+    } else {
+        Err(value)
+    }
+}
+
+/// Supporting trait for autoderef specialization on references to lifetime-free
+/// target types.
+pub trait TryCastRefLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
+    #[inline(always)]
+    fn try_cast(&self, value: &'a T) -> Result<&'a U, &'a T> {
+        try_cast_ref_lifetime_free(value)
+    }
+}
+
+impl<'a, T: ?Sized, U: LifetimeFree + ?Sized> TryCastRefLifetimeFree<'a, T, U>
+    for &&&&&&&&(CastToken<&'a T>, CastToken<&'a U>)
 {
 }
 
 /// Supporting trait for autoderef specialization on references to lifetime-free
-/// types.
-pub trait TryCastRefLifetimeFree<'a, T: ?Sized, U: LifetimeFree + ?Sized> {
+/// source types.
+pub trait TryCastRefLifetimeFreeBack<'a, T: LifetimeFree + ?Sized, U: ?Sized> {
     #[inline(always)]
     fn try_cast(&self, value: &'a T) -> Result<&'a U, &'a T> {
-        // SAFETY: See comments on safety in `TryCastLifetimeFree`.
-
-        if type_eq_non_static::<T, U>() {
-            // Pointer casts are not allowed here since the compiler can't prove
-            // that `&T` and `&U` have the same kind of associated pointer data if
-            // they are fat pointers. But we know they are identical, so we use
-            // a transmute.
-            Ok(unsafe { transmute_unchecked::<&T, &U>(value) })
-        } else {
-            Err(value)
-        }
+        try_cast_ref_lifetime_free(value)
     }
 }
 
-impl<'a, T, U: LifetimeFree> TryCastRefLifetimeFree<'a, T, U>
-    for &&&&&&(CastToken<&'a T>, CastToken<&'a U>)
+impl<'a, T: LifetimeFree + ?Sized, U: ?Sized> TryCastRefLifetimeFreeBack<'a, T, U>
+    for &&&&&&&(CastToken<&'a T>, CastToken<&'a U>)
 {
 }
 
-/// Supporting trait for autoderef specialization on lifetime-free types.
-pub trait TryCastOwnedLifetimeFree<T, U: LifetimeFree> {
-    #[inline(always)]
-    fn try_cast(&self, value: T) -> Result<U, T> {
-        // SAFETY: If `U` is lifetime-free, and the base types of `T` and `U`
-        // are equal, then `T` is also lifetime-free. Therefore `T` and `U` are
-        // strictly identical and it is safe to cast a `T` into a `U`.
-        //
-        // We know that `U` is lifetime-free because of the `LifetimeFree` trait
-        // checked statically. `LifetimeFree` is an unsafe trait implemented for
-        // individual types, so the burden of verifying that a type is indeed
-        // lifetime-free is on the implementer.
+// SAFETY: Requires at least one of `T` or `U` to be `LifetimeFree`.
+#[inline(always)]
+fn try_cast_ref_lifetime_free<T: ?Sized, U: ?Sized>(value: &T) -> Result<&U, &T> {
+    // SAFETY: See comments on safety in `try_cast_owned_lifetime_free`.
 
-        if type_eq_non_static::<T, U>() {
-            Ok(unsafe { transmute_unchecked::<T, U>(value) })
-        } else {
-            Err(value)
-        }
+    if type_eq_non_static::<T, U>() {
+        // Pointer casts are not allowed here since the compiler can't prove
+        // that `&T` and `&U` have the same kind of associated pointer data if
+        // they are fat pointers. But we know they are identical, so we use
+        // a transmute.
+        Ok(unsafe { transmute_unchecked::<&T, &U>(value) })
+    } else {
+        Err(value)
     }
 }
 
-impl<T, U: LifetimeFree> TryCastOwnedLifetimeFree<T, U> for &&&&&(CastToken<T>, CastToken<U>) {}
+/// Supporting trait for autoderef specialization on lifetime-free target types.
+pub trait TryCastOwnedLifetimeFree<T, U: LifetimeFree> {
+    #[inline(always)]
+    fn try_cast(&self, value: T) -> Result<U, T> {
+        try_cast_owned_lifetime_free(value)
+    }
+}
+
+impl<T, U: LifetimeFree> TryCastOwnedLifetimeFree<T, U> for &&&&&&(CastToken<T>, CastToken<U>) {}
+
+/// Supporting trait for autoderef specialization on lifetime-free source types.
+pub trait TryCastOwnedLifetimeFreeBack<T: LifetimeFree, U> {
+    #[inline(always)]
+    fn try_cast(&self, value: T) -> Result<U, T> {
+        try_cast_owned_lifetime_free(value)
+    }
+}
+
+impl<T: LifetimeFree, U> TryCastOwnedLifetimeFreeBack<T, U> for &&&&&(CastToken<T>, CastToken<U>) {}
+
+// SAFETY: Requires at least one of `T` or `U` to be `LifetimeFree`.
+#[inline(always)]
+fn try_cast_owned_lifetime_free<T, U>(value: T) -> Result<U, T> {
+    // SAFETY: If `U` is lifetime-free, and the base types of `T` and `U`
+    // are equal, then `T` is also lifetime-free. Therefore `T` and `U` are
+    // strictly identical and it is safe to cast a `T` into a `U`.
+    //
+    // We know that `U` is lifetime-free because of the `LifetimeFree` trait
+    // checked statically. `LifetimeFree` is an unsafe trait implemented for
+    // individual types, so the burden of verifying that a type is indeed
+    // lifetime-free is on the implementer.
+
+    if type_eq_non_static::<T, U>() {
+        Ok(unsafe { transmute_unchecked::<T, U>(value) })
+    } else {
+        Err(value)
+    }
+}
 
 /// Supporting trait for autoderef specialization on mutable slices.
 pub trait TryCastSliceMut<'a, T: 'static, U: 'static> {
