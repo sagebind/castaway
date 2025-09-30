@@ -206,6 +206,167 @@ macro_rules! cast {
     };
 }
 
+/// Check (at compile time) whether a value of type `T` could be successfully
+/// cast to the concrete type `U` using [`cast!`].
+///
+/// This macro never evaluates a value and works purely on the two type
+/// parameters you supply. It returns `true` iff `cast!(value, U)` would return
+/// `Ok(_)` for a value whose static type is `T`, subject to the same lifetime
+/// and safety restrictions documented on [`cast!`].
+///
+/// Conceptually this is equivalent to performing a trial cast, but without
+/// having (or moving) an actual value. This is useful when:
+///
+/// - You want to branch on type equality / cast feasibility inside a generic
+///   implementation without consuming a non-`Copy` value yet.
+/// - You need a simple boolean to drive other compile-time choices (e.g.
+///   selecting const generic parameters, building static lookup tables, etc.).
+/// - You are only interested in the existence of the cast, not in obtaining
+///   function pointers for both directions (see [`get_cast_fns!`]).
+///
+/// Like [`cast!`], this macro performs no data conversion – the cast only
+/// succeeds when the underlying concrete types are identical (accounting for
+/// lifetimes and the special lifetime‑free allowances). It is still “zero‑cost”
+/// after monomorphization: the compiler reduces the check to a constant.
+///
+/// # Relationship to other macros
+///
+/// - Use [`get_cast_fns!`] if you additionally need reusable function
+///   pointers for converting values in both directions.
+/// - Use [`match_ty!`] to write a chain of type match arms using
+///   `get_cast_fns!` internally.
+///
+/// # Examples
+///
+/// Basic checks:
+/// ```
+/// # use castaway::can_cast;
+/// assert!(can_cast!(u8, u8));
+/// assert!(!can_cast!(u8, u16));
+/// ```
+///
+/// Inside a generic context:
+/// ```
+/// use castaway::can_cast;
+///
+/// fn specializes_on_u8<T: 'static>() -> bool {
+///     can_cast!(T, u8)
+/// }
+/// assert!(specializes_on_u8::<u8>());
+/// assert!(!specializes_on_u8::<u16>());
+/// ```
+///
+/// With lifetime‑free types (no `'static` bound on the generic):
+/// ```
+/// use castaway::can_cast;
+/// fn maybe_string<T>() -> bool { can_cast!(T, String) }
+/// assert!(maybe_string::<String>());
+/// assert!(!maybe_string::<&'static str>()); // Different concrete type.
+/// ```
+#[macro_export]
+macro_rules! can_cast {
+    ($T:ty, $U:ty) => {{
+        #[allow(unused_imports)]
+        use $crate::internal::*;
+
+        // Here we are using an _autoderef specialization_ technique, see notes in [`cast!`]
+        let src_token = CastToken::<$T>::of();
+        let dest_token = CastToken::<$U>::of();
+
+        // Note: The number of references added here must be kept in sync with
+        // the largest number of references used by any trait implementation in
+        // the internal module.
+        let result: bool = (&&&&&&&(src_token, dest_token)).can_cast();
+
+        result
+    }};
+}
+
+/// Retrieve zero‑cost function pointers that perform the cast between two
+/// concrete types `T` and `U`, if (and only if) that cast is legal per the
+/// rules of [`cast!`].
+///
+/// `get_cast_fns!(T, U)` returns `Option<(fn(U) -> T, fn(T) -> U)>`.
+/// - `Some((from, to))` indicates that values of type `T` can be cast to `U`
+///   and vice‑versa (i.e. the types are considered identical for the purposes
+///   of this crate). The first function, `from`, converts a `U` into a `T`.
+///   The second function, `to`, converts a `T` into a `U`.
+/// - `None` means the cast would fail (just like `cast!(value, U)` would
+///   return `Err(value)` for a `value: T`).
+///
+/// These functions perform no runtime checks and are guaranteed to succeed
+/// when called. They are effectively identity / re‑interpretation functions
+/// that the compiler can fully inline and optimize away. Acquiring them once
+/// lets you avoid repeating the cast logic in multiple places, and can be
+/// useful for building higher‑level abstractions (see [`match_ty!`]).
+///
+/// If you only need a boolean, prefer the lighter [`can_cast!`].
+///
+/// # Ordering of the tuple
+/// The tuple is `(fn(U) -> T, fn(T) -> U)` (note the order mirrors “from U to
+/// T” first). This matches the internal implementation details and allows
+/// ergonomic pattern binding: `let (from_u, to_u) = get_cast_fns!(T, U).unwrap();`.
+///
+/// # Lifetime & safety
+/// The same lifetime restrictions apply as with [`cast!`]. The returned
+/// function pointers are always safe to call; unsafety is encapsulated within
+/// the crate once the feasibility check passes.
+///
+/// # Examples
+///
+/// Basic usage:
+/// ```
+/// # use castaway::get_cast_fns;
+/// assert!(get_cast_fns!(u8, u16).is_none());
+/// let (from_u8, to_u8) = get_cast_fns!(u8, u8).unwrap();
+/// assert_eq!(from_u8(42u8), 42u8); // U -> T (u8 -> u8)
+/// assert_eq!(to_u8(42u8), 42u8);   // T -> U
+/// ```
+///
+/// Generic specialization:
+/// ```
+/// use castaway::get_cast_fns;
+/// fn maybe_get_string_fns<T: 'static>() -> Option<(fn(String) -> T, fn(T) -> String)> {
+///     get_cast_fns!(T, String)
+/// }
+/// assert!(maybe_get_string_fns::<String>().is_some());
+/// assert!(maybe_get_string_fns::<u8>().is_none());
+/// ```
+///
+/// With a helper abstraction:
+/// ```
+/// use castaway::get_cast_fns;
+/// fn transform_if_same<T: 'static, U: 'static, F: FnOnce(U) -> U>(value: T, f: F) -> T {
+///     if let Some((from_u, to_u)) = get_cast_fns!(T, U) {
+///         // Safe: we know T == U for casting purposes.
+///         let u_val = to_u(value); // T -> U
+///         from_u(f(u_val))         // U -> T
+///     } else {
+///         value
+///     }
+/// }
+/// assert_eq!(transform_if_same::<u8, u8, _>(5, |x| x + 1), 6);
+/// assert_eq!(transform_if_same::<u8, u16, _>(5, |x| x + 1), 5);
+/// ```
+#[macro_export]
+macro_rules! get_cast_fns {
+    ($T:ty, $U:ty) => {{
+        #[allow(unused_imports)]
+        use $crate::internal::*;
+
+        // Here we are using an _autoderef specialization_ technique, see notes in [`cast!`]
+        let src_token = CastToken::<$T>::of();
+        let dest_token = CastToken::<$U>::of();
+
+        // Note: The number of references added here must be kept in sync with
+        // the largest number of references used by any trait implementation in
+        // the internal module.
+        let result: Option<(fn($U) -> $T, fn($T) -> $U)> = (&&&&&&&(src_token, dest_token)).get_cast_fns();
+
+        result
+    }};
+}
+
 /// Match the result of an expression against multiple concrete types.
 ///
 /// You can write multiple match arms in the following syntax:
@@ -284,6 +445,161 @@ macro_rules! match_type {
     }};
 }
 
+#[macro_export]
+/// Perform a compile-time style match over a single source type against one or
+/// more candidate destination types, executing the first matching branch.
+///
+/// This macro is the type-level analogue to [`match_type!`], but instead of
+/// matching on the runtime value of an expression it examines only the *static
+/// type* `From` (the first argument). Each arm lists one or more concrete
+/// destination types separated by `|`. If any of those destination types can
+/// be (symmetrically) cast to/from `From` (i.e. they are identical under this
+/// crate's rules), the corresponding branch expression is evaluated and its
+/// value becomes the macro's result.
+///
+/// Internally this uses [`can_cast!`] (fast path) and/or [`get_cast_fns!`]
+/// (when you request the function pointers) to test feasibility. Untaken
+/// branches compile away completely; there is no runtime overhead after
+/// monomorphization. No data transformation occurs: only identity casts for
+/// concretely equal types (respecting lifetime / lifetime‑free constraints)
+/// are considered matches.
+///
+/// # Syntax
+/// Basic form (boolean style matching on type only):
+/// ```text
+/// match_ty!(From, {
+///     Type1 => expr1,
+///     Type2 | Type3 => expr2,
+///     _ => default_expr,
+/// })
+/// ```
+/// A leading `|` before the first type in an arm (`| Type1 | Type2 => ...`) is
+/// also accepted for stylistic consistency with normal Rust pattern groups.
+///
+/// Function‑capturing form (obtain zero‑cost cast function pointers):
+/// ```text
+/// match_ty!(From, (from_fn, to_fn), {
+///     TargetType => expr_using_from_fn_and_to_fn,
+///     _ => fallback,
+/// })
+/// ```
+/// In a matching arm, `from_fn` has type `fn(TargetType) -> From` and `to_fn`
+/// has type `fn(From) -> TargetType`. In non‑matching arms those names are not
+/// bound (the code for that arm is never executed anyway). You may ignore one
+/// of them with `_`.
+///
+/// An entirely empty arm set is permitted: `match_ty!(T, {})` expands to `()`.
+/// A final default arm (`_ => ...`) is otherwise required because you cannot
+/// enumerate all possible types.
+///
+/// # Differences from [`match_type!`]
+/// - Operates only on types; no value is evaluated or bound.
+/// - Branch expressions cannot pattern‑match on a value of the matched type.
+/// - Directly returns the branch expression (no intermediate `Result`).
+///
+/// # Captured function pointer ordering
+/// The tuple captured internally (and exposed via your `(from_fn, to_fn)`
+/// pattern) is `(fn(Target) -> From, fn(From) -> Target)`. Naming them `from`
+/// and `to` is a common convention used in the examples below.
+///
+/// # Examples
+/// Basic categorization:
+/// ```
+/// use castaway::match_ty;
+/// fn classify<T: 'static>() -> &'static str {
+///     match_ty!(T, {
+///         u8 | i8 => "byte",
+///         u16 => "short",
+///         _ => "other",
+///     })
+/// }
+/// assert_eq!(classify::<u8>(), "byte");
+/// assert_eq!(classify::<i8>(), "byte");
+/// assert_eq!(classify::<u16>(), "short");
+/// assert_eq!(classify::<u32>(), "other");
+/// ```
+///
+/// Specializing while capturing cast functions (note `_` ignores the second):
+/// ```
+/// use castaway::match_ty;
+/// fn default_value<T: 'static + Default>() -> T {
+///     match_ty!(T, (from, _), {
+///         u8 => from(1u8),
+///         i32 => from(2i32),
+///         _ => T::default(),
+///     })
+/// }
+/// assert_eq!(default_value::<u8>(), 1);
+/// assert_eq!(default_value::<i32>(), 2);
+/// assert_eq!(default_value::<u16>(), 0); // via Default
+/// ```
+///
+/// Accessing both conversion directions directly:
+/// ```
+/// use castaway::match_ty;
+/// fn maybe_round_trip<T: 'static + Copy>() -> Option<(fn(u32)->T, fn(T)->u32)> {
+///     match_ty!(T, (from, to), {
+///         u32 => Some((from, to)),
+///         _ => None,
+///     })
+/// }
+/// assert!(maybe_round_trip::<u32>().is_some());
+/// assert!(maybe_round_trip::<u16>().is_none());
+/// ```
+///
+/// Empty usage (rare):
+/// ```
+/// use castaway::match_ty;
+/// const _: () = match_ty!(u8, {}); // Expands to ()
+/// ```
+macro_rules! match_ty {
+    ($from:ty, $(($from_fn:pat, $to_fn:pat),)? {
+        _ => $branch:expr $(,)?
+    }) => {
+        ($branch)
+    };
+
+    ($from:ty, ($from_fn:pat, $to_fn:pat), {
+        $to:ty $(| $to_tail:ty)* => $branch:expr,
+        $($tail:tt)*
+    }) => {
+        if let Some(($from_fn, $to_fn)) = $crate::get_cast_fns!($from, $to) {
+            $branch
+        } else {
+            $crate::match_ty!($from, ($from_fn, $to_fn), {
+                $($to_tail => $branch,)*
+                $($tail)*
+            })
+        }
+    };
+
+    ($from:ty, {
+        $to:ty $(| $to_tail:ty)* => $branch:expr,
+        $($tail:tt)*
+    }) => {
+        if $crate::can_cast!($from, $to) {
+            $branch
+        } else {
+            $crate::match_ty!($from, {
+                $($to_tail => $branch,)*
+                $($tail)*
+            })
+        }
+    };
+
+    ($from:ty, $(($from_fn:pat, $to_fn:pat),)? {
+        $(| $to:ty)+ => $branch:expr,
+        $($tail:tt)*
+    }) => {
+        $crate::match_ty!($from, $(($from_fn, $to_fn),)? {
+            $($to => $branch,)+
+            $($tail)*
+        });
+    };
+
+    ($from:ty, $(($from_fn:pat, $to_fn:pat),)? {}) => {()};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,7 +672,10 @@ mod tests {
     #[test]
     fn cast_lifetime_free_unsized_ref() {
         fn can_cast<T>(value: &[T]) -> bool {
-            cast!(value, &[u8]).is_ok()
+            let result = cast!(value, &[u8]).is_ok();
+            assert_eq!(result, can_cast!(T, u8));
+            assert_eq!(result, get_cast_fns!(T, u8).is_some());
+            result
         }
 
         let value = 42i32;
@@ -368,13 +687,45 @@ mod tests {
     #[test]
     fn cast_lifetime_free_unsized_mut() {
         fn can_cast<T>(value: &mut [T]) -> bool {
-            cast!(value, &mut [u8]).is_ok()
+            let result = cast!(value, &mut [u8]).is_ok();
+            assert_eq!(result, can_cast!(T, u8));
+            assert_eq!(result, get_cast_fns!(T, u8).is_some());
+            result
         }
 
         let value = 42i32;
         assert!(can_cast(&mut [1_u8, 2, 3, 4]));
         assert!(!can_cast(&mut [1_i8, 2, 3, 4]));
         assert!(!can_cast(&mut [&value, &value]));
+    }
+
+    macro_rules! test_cast_inner {
+        (@mut $value:expr, $T:ty, $U:ty) => {{
+            let mut value_src = $value.clone();
+            let result = cast!($value, $U);
+            assert_eq!(result.is_ok(), can_cast!($T, $U));
+            assert_eq!(result.is_ok(), get_cast_fns!($T, $U).is_some());
+            if let Some((from, to)) = get_cast_fns!($T, $U) {
+                let value_t = from(result.unwrap()); // U -> T
+                assert_eq!(value_t, &mut value_src);
+                Ok(to(value_t)) // T -> U
+            } else {
+                result
+            }
+        }};
+        ($value:expr, $T:ty, $U:ty) => {{
+            let value_src: $T = $value.clone();
+            let result = cast!($value, $U);
+            assert_eq!(result.is_ok(), can_cast!($T, $U));
+            assert_eq!(result.is_ok(), get_cast_fns!($T, $U).is_some());
+            if let Some((from, to)) = get_cast_fns!($T, $U) {
+                let value_in: $T = value_src.clone();
+                let value_u = to(value_in); // T -> U
+                let value_t = from(value_u); // U -> T
+                assert_eq!(value_t, value_src);
+            }
+            result
+        }};
     }
 
     macro_rules! test_lifetime_free_cast {
@@ -394,8 +745,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ $name>]() {
-                    fn do_cast<T>(value: T) -> Result<$TARGET, T> {
-                        cast!(value, $TARGET)
+                    fn do_cast<T: Clone + PartialEq + std::fmt::Debug>(value: T) -> Result<$TARGET, T> {
+                        test_cast_inner!(value, T, $TARGET)
                     }
 
                     $(
@@ -410,8 +761,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ref_ $name>]() {
-                    fn do_cast<T>(value: &T) -> Result<&$TARGET, &T> {
-                        cast!(value, &$TARGET)
+                    fn do_cast<'a, T: PartialEq + std::fmt::Debug>(value: &'a T) -> Result<&'a $TARGET, &'a T> {
+                        test_cast_inner!(value, &'a T, &'a $TARGET)
                     }
 
                     $(
@@ -426,8 +777,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_mut_ $name>]() {
-                    fn do_cast<T>(value: &mut T) -> Result<&mut $TARGET, &mut T> {
-                        cast!(value, &mut $TARGET)
+                    fn do_cast<'a, T: Clone + PartialEq + std::fmt::Debug>(value: &'a mut T) -> Result<&'a mut $TARGET, &'a mut T> {
+                        test_cast_inner!(@mut value, &'a mut T, &'a mut $TARGET)
                     }
 
                     $(
@@ -458,8 +809,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ $TARGET>]() {
-                    fn do_cast<T>(value: T) -> Result<$TARGET, T> {
-                        cast!(value, $TARGET)
+                    fn do_cast<T: Clone + PartialEq + std::fmt::Debug>(value: T) -> Result<$TARGET, T> {
+                        test_cast_inner!(value, T, $TARGET)
                     }
 
                     $(
@@ -474,8 +825,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_ref_ $TARGET>]() {
-                    fn do_cast<T>(value: &T) -> Result<&$TARGET, &T> {
-                        cast!(value, &$TARGET)
+                    fn do_cast<'a, T: PartialEq + std::fmt::Debug>(value: &'a T) -> Result<&'a $TARGET, &'a T> {
+                        test_cast_inner!(value, &'a T, &'a $TARGET)
                     }
 
                     $(
@@ -490,8 +841,8 @@ mod tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<cast_lifetime_free_mut_ $TARGET>]() {
-                    fn do_cast<T>(value: &mut T) -> Result<&mut $TARGET, &mut T> {
-                        cast!(value, &mut $TARGET)
+                    fn do_cast<'a, T: Clone + PartialEq + std::fmt::Debug>(value: &'a mut T) -> Result<&'a mut $TARGET, &'a mut T> {
+                        test_cast_inner!(@mut value, &'a mut T, &'a mut $TARGET)
                     }
 
                     $(
@@ -546,5 +897,28 @@ mod tests {
             (false, 2u16) => Ok((false, 2u16)),
             true => Err(true),
         }
+    }
+
+    #[test]
+    fn test_match_ty() {
+        let a = match_ty!(u8, {
+            u8 => 1,
+            _ => 2,
+        });
+        assert_eq!(a, 1);
+
+        let a = match_ty!(u16, (from, _), {
+            u8 => from(1),
+            u16 => from(2),
+            _ => 3,
+        });
+        assert_eq!(a, 2);
+
+
+        let a = match_ty!(u16, (from, _), {
+            u8 | u16 => from(1),
+            _ => 2,
+        });
+        assert_eq!(a, 1);
     }
 }
